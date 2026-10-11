@@ -1,0 +1,98 @@
+package com.impact.auth;
+
+import com.impact.auth.dto.RegisterRequest;
+import jakarta.validation.Valid;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+public class AuthController {
+
+    private final AuthService authService;
+
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
+
+    @GetMapping("/")
+    public String rootRedirect() {
+        return "redirect:/login";
+    }
+
+    @GetMapping("/login")
+    public String showLoginForm() {
+        return "login";
+    }
+
+    @GetMapping("/register")
+    public String showRegisterForm(Model model) {
+        model.addAttribute("registerRequest", new RegisterRequest());
+        return "register";
+    }
+
+    @PostMapping("/register")
+    public String registerUser(@Valid @ModelAttribute("registerRequest") RegisterRequest request,
+                               BindingResult bindingResult, Model model,
+                               RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            return "register";
+        }
+        try {
+            authService.registerUser(request);
+            redirectAttributes.addFlashAttribute("successMsg", "Registration successful. Please log in to complete OTP verification.");
+            return "redirect:/login";
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("errorMsg", e.getMessage());
+            return "register";
+        } catch (Exception e) {
+            model.addAttribute("errorMsg", "An unexpected error occurred.");
+            return "register";
+        }
+    }
+
+    @GetMapping("/otp")
+    public String showOtpForm() {
+        return "otp";
+    }
+
+    @PostMapping("/otp/send")
+    public String sendOtp(@RequestParam String phone, RedirectAttributes redirectAttributes, Authentication authentication) {
+        if (phone == null || !phone.matches("\\d{10}")) {
+            redirectAttributes.addFlashAttribute("errorMsg", "Phone number must be exactly 10 digits.");
+            return "redirect:/otp";
+        }
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        try {
+            String generatedOtp = authService.generateOtp(userDetails.getUser().getId(), phone);
+            // We pass it to the UI specifically because it's a simulation
+            redirectAttributes.addFlashAttribute("simulatedOtp", generatedOtp);
+            redirectAttributes.addFlashAttribute("successMsg", "OTP generated successfully.");
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMsg", e.getMessage());
+        }
+        return "redirect:/otp";
+    }
+
+    @PostMapping("/otp/verify")
+    public String verifyOtp(@RequestParam String code, Authentication authentication, RedirectAttributes redirectAttributes) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        boolean isValid = authService.verifyOtp(userDetails.getUser().getId(), code);
+
+        if (isValid) {
+            // Log user out to force a fresh login with new authorities (ACTIVE status)
+            SecurityContextHolder.clearContext();
+            redirectAttributes.addFlashAttribute("successMsg", "Account verified successfully! Please log in.");
+            return "redirect:/login";
+        } else {
+            redirectAttributes.addFlashAttribute("errorMsg", "Invalid OTP code.");
+            return "redirect:/otp";
+        }
+    }
+}
