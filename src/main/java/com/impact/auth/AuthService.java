@@ -45,6 +45,10 @@ public class AuthService {
 
     @Transactional
     public void registerUser(RegisterRequest request) throws Exception {
+        // ENFORCE ROLE RESTRICTION: Reject ADMIN registration even if form was manipulated
+        if (request.getRole() == Role.ROLE_ADMIN) {
+            throw new IllegalArgumentException("Registration as ADMIN is not permitted.");
+        }
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email is already registered");
         }
@@ -73,10 +77,7 @@ public class AuthService {
                 Files.createDirectories(uploadDir);
             }
             Path filePath = uploadDir.resolve(photo.getStoragePath() + ".img");
-            
-            // FIX: Use toAbsolutePath() so the servlet container saves it in the correct project folder
             request.getPhoto().transferTo(filePath.toAbsolutePath().toFile());
-            
             user.setPhoto(photo);
         }
 

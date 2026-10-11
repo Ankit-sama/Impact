@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header('Admin Panel - impACT')}"></head>
+<body class="bg-light">
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Admin Panel</h2>
+            <p class="text-muted">Role: Administrator | System Management</p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center py-4">
+                    <h5 class="card-title">Organizations to Verify</h5>
+                    <p class="text-muted small">Placeholder for Organization queue</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center py-4">
+                    <h5 class="card-title">Proofs to Review</h5>
+                    <p class="text-muted small">Placeholder for Proof queue</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center py-4">
+                    <h5 class="card-title">Expenses to Review</h5>
+                    <p class="text-muted small">Placeholder for Expense queue</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>
