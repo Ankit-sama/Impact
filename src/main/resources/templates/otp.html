@@ -21,7 +21,7 @@
             <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
             <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
 
-            <!-- SIMULATED OTP DISPLAY BANNER -->
+            <!-- SIMULATED OTP DISPLAY BANNER (Fallback) -->
             <div th:if="${simulatedOtp}" class="alert alert-info text-center fs-4 font-monospace">
                 Your simulated OTP is: <strong th:text="${simulatedOtp}"></strong>
             </div>
@@ -32,7 +32,7 @@
                     <form th:action="@{/otp/send}" method="post">
                         <div class="mb-3">
                             <label class="form-label">Enter your 10-digit phone number</label>
-                            <input type="text" class="form-control" name="phone" pattern="\d{10}" required>
+                            <input type="text" class="form-control" name="phone" th:value="${phone}" pattern="\d{10}" required>
                         </div>
                         <button type="submit" class="btn btn-secondary w-100">Send Simulated OTP</button>
                     </form>
@@ -60,5 +60,31 @@
         </div>
     </div>
 </div>
+
+<!-- Modal for Simulated SMS Message -->
+<div th:if="${simulatedOtp}" class="modal fade" id="otpModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">New Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body fs-5">
+                impACT: your verification code is <strong class="font-monospace" th:text="${simulatedOtp}"></strong>
+            </div>
+            <div class="modal-footer text-muted small border-0 pt-0">
+                Simulated OTP - no SMS is sent.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script th:if="${simulatedOtp}">
+    document.addEventListener("DOMContentLoaded", function() {
+        var otpModal = new bootstrap.Modal(document.getElementById('otpModal'));
+        otpModal.show();
+    });
+</script>
 </body>
 </html>

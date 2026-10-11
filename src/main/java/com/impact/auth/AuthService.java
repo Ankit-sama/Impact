@@ -15,7 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -74,7 +73,10 @@ public class AuthService {
                 Files.createDirectories(uploadDir);
             }
             Path filePath = uploadDir.resolve(photo.getStoragePath() + ".img");
-            request.getPhoto().transferTo(filePath.toFile());
+            
+            // FIX: Use toAbsolutePath() so the servlet container saves it in the correct project folder
+            request.getPhoto().transferTo(filePath.toAbsolutePath().toFile());
+            
             user.setPhoto(photo);
         }
 
@@ -122,5 +124,11 @@ public class AuthService {
             return true;
         }
         return false;
+    }
+
+    public String getLastPhoneForUser(Long userId) {
+        return otpRecordRepository.findTopByUserIdOrderByCreatedAtDesc(userId)
+                .map(OtpRecord::getPhone)
+                .orElse(null);
     }
 }

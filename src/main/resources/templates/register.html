@@ -60,7 +60,8 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Profile Photo (Optional)</label>
-                            <input type="file" class="form-control" th:field="*{photo}" accept="image/png, image/jpeg">
+                            <input type="file" class="form-control" th:classappend="${#fields.hasErrors('photo')} ? 'is-invalid' : ''" th:field="*{photo}" accept="image/png, image/jpeg">
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('photo')}" th:errors="*{photo}"></div>
                         </div>
                         <button type="submit" class="btn btn-success w-100">Register</button>
                     </form>

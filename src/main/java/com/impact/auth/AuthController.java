@@ -2,18 +2,21 @@ package com.impact.auth;
 
 import com.impact.auth.dto.RegisterRequest;
 import jakarta.validation.Valid;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 public class AuthController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     private final AuthService authService;
 
     public AuthController(AuthService authService) {
@@ -40,9 +43,23 @@ public class AuthController {
     public String registerUser(@Valid @ModelAttribute("registerRequest") RegisterRequest request,
                                BindingResult bindingResult, Model model,
                                RedirectAttributes redirectAttributes) {
+        
+        // Manual validation for the uploaded photo
+        MultipartFile photo = request.getPhoto();
+        if (photo != null && !photo.isEmpty()) {
+            if (photo.getSize() > 2 * 1024 * 1024) {
+                bindingResult.rejectValue("photo", "error.photo", "Photo must be smaller than 2MB");
+            }
+            String contentType = photo.getContentType();
+            if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png"))) {
+                bindingResult.rejectValue("photo", "error.photo", "Only JPG and PNG images are allowed");
+            }
+        }
+
         if (bindingResult.hasErrors()) {
             return "register";
         }
+        
         try {
             authService.registerUser(request);
             redirectAttributes.addFlashAttribute("successMsg", "Registration successful. Please log in to complete OTP verification.");
@@ -51,13 +68,20 @@ public class AuthController {
             model.addAttribute("errorMsg", e.getMessage());
             return "register";
         } catch (Exception e) {
-            model.addAttribute("errorMsg", "An unexpected error occurred.");
+            logger.error("Registration failed with unexpected error", e);
+            model.addAttribute("errorMsg", "An unexpected error occurred. Please try again.");
             return "register";
         }
     }
 
     @GetMapping("/otp")
-    public String showOtpForm() {
+    public String showOtpForm(Model model, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        // Keep the phone number populated if the user has tried before
+        String lastPhone = authService.getLastPhoneForUser(userDetails.getUser().getId());
+        if (!model.containsAttribute("phone") && lastPhone != null) {
+            model.addAttribute("phone", lastPhone);
+        }
         return "otp";
     }
 
@@ -65,17 +89,19 @@ public class AuthController {
     public String sendOtp(@RequestParam String phone, RedirectAttributes redirectAttributes, Authentication authentication) {
         if (phone == null || !phone.matches("\\d{10}")) {
             redirectAttributes.addFlashAttribute("errorMsg", "Phone number must be exactly 10 digits.");
+            redirectAttributes.addFlashAttribute("phone", phone);
             return "redirect:/otp";
         }
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         try {
             String generatedOtp = authService.generateOtp(userDetails.getUser().getId(), phone);
-            // We pass it to the UI specifically because it's a simulation
             redirectAttributes.addFlashAttribute("simulatedOtp", generatedOtp);
             redirectAttributes.addFlashAttribute("successMsg", "OTP generated successfully.");
+            redirectAttributes.addFlashAttribute("phone", phone);
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMsg", e.getMessage());
+            redirectAttributes.addFlashAttribute("phone", phone);
         }
         return "redirect:/otp";
     }
@@ -86,7 +112,6 @@ public class AuthController {
         boolean isValid = authService.verifyOtp(userDetails.getUser().getId(), code);
 
         if (isValid) {
-            // Log user out to force a fresh login with new authorities (ACTIVE status)
             SecurityContextHolder.clearContext();
             redirectAttributes.addFlashAttribute("successMsg", "Account verified successfully! Please log in.");
             return "redirect:/login";
