@@ -1,6 +1,8 @@
 package com.impact.auth;
 
 import com.impact.auth.dto.RegisterRequest;
+import com.impact.user.Role;
+import com.impact.user.UserStatus;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,18 +25,39 @@ public class AuthController {
         this.authService = authService;
     }
 
+    private String getRedirectForAuthenticatedUser(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return null;
+        }
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        if (userDetails.getUser().getStatus() == UserStatus.PENDING_VERIFICATION) {
+            return "redirect:/otp";
+        }
+        Role role = userDetails.getUser().getRole();
+        if (role == Role.ROLE_VOLUNTEER) return "redirect:/volunteer/dashboard";
+        if (role == Role.ROLE_ORG_MANAGER) return "redirect:/manager/dashboard";
+        if (role == Role.ROLE_ADMIN) return "redirect:/admin/dashboard";
+        return "redirect:/";
+    }
+
     @GetMapping("/")
-    public String rootRedirect() {
-        return "redirect:/login";
+    public String rootRedirect(Authentication auth) {
+        String redirect = getRedirectForAuthenticatedUser(auth);
+        return redirect != null ? redirect : "redirect:/login";
     }
 
     @GetMapping("/login")
-    public String showLoginForm() {
+    public String showLoginForm(Authentication auth) {
+        String redirect = getRedirectForAuthenticatedUser(auth);
+        if (redirect != null) return redirect;
         return "login";
     }
 
     @GetMapping("/register")
-    public String showRegisterForm(Model model) {
+    public String showRegisterForm(Model model, Authentication auth) {
+        String redirect = getRedirectForAuthenticatedUser(auth);
+        if (redirect != null) return redirect;
+        
         model.addAttribute("registerRequest", new RegisterRequest());
         return "register";
     }
@@ -42,9 +65,10 @@ public class AuthController {
     @PostMapping("/register")
     public String registerUser(@Valid @ModelAttribute("registerRequest") RegisterRequest request,
                                BindingResult bindingResult, Model model,
-                               RedirectAttributes redirectAttributes) {
-        
-        // Manual validation for the uploaded photo
+                               RedirectAttributes redirectAttributes, Authentication auth) {
+        String redirect = getRedirectForAuthenticatedUser(auth);
+        if (redirect != null) return redirect;
+                               
         MultipartFile photo = request.getPhoto();
         if (photo != null && !photo.isEmpty()) {
             if (photo.getSize() > 2 * 1024 * 1024) {
@@ -77,7 +101,6 @@ public class AuthController {
     @GetMapping("/otp")
     public String showOtpForm(Model model, Authentication authentication) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        // Keep the phone number populated if the user has tried before
         String lastPhone = authService.getLastPhoneForUser(userDetails.getUser().getId());
         if (!model.containsAttribute("phone") && lastPhone != null) {
             model.addAttribute("phone", lastPhone);

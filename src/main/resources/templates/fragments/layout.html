@@ -17,23 +17,21 @@
         
         <div class="collapse navbar-collapse" id="navbarNav" th:if="${currentUser != null}">
             <ul class="navbar-nav me-auto">
-                <!-- Volunteer Links -->
                 <li class="nav-item" th:if="${currentUser.user.role.name() == 'ROLE_VOLUNTEER'}">
                     <a class="nav-link" th:href="@{/volunteer/dashboard}">Dashboard</a>
                 </li>
-                <!-- Manager Links -->
                 <li class="nav-item" th:if="${currentUser.user.role.name() == 'ROLE_ORG_MANAGER'}">
                     <a class="nav-link" th:href="@{/manager/dashboard}">Workspace</a>
                 </li>
-                <!-- Admin Links -->
                 <li class="nav-item" th:if="${currentUser.user.role.name() == 'ROLE_ADMIN'}">
                     <a class="nav-link" th:href="@{/admin/dashboard}">Admin Panel</a>
                 </li>
             </ul>
             
             <ul class="navbar-nav">
+                <!-- UPDATED NOTIFICATION LINK -->
                 <li class="nav-item me-3">
-                    <a class="nav-link position-relative" href="#">
+                    <a class="nav-link position-relative" th:href="@{/notifications}">
                         Notifications
                         <span th:if="${unreadNotificationCount > 0}" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                             <span th:text="${unreadNotificationCount}"></span>
@@ -59,7 +57,7 @@
     </div>
 </nav>
 
-<!-- Dev Profile Footer Widget Fragment -->
+<!-- Dev Profile Footer Widget Fragment (UNCHANGED from previous fix) -->
 <div th:fragment="footer" class="container mt-5 mb-5" th:if="${@environment.acceptsProfiles('dev')}">
     <hr>
     <div class="card border-warning">

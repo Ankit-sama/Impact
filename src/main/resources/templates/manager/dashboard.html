@@ -6,19 +6,48 @@
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
 
 <div class="container">
+    <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
+    <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
+
     <div class="row mb-4">
         <div class="col">
-            <h2>Welcome, <span th:text="${currentUser.user.name}"></span>!</h2>
-            <p class="text-muted">Role: Organization Manager | Location: <span th:text="${currentUser.user.city}"></span></p>
+            <h2>Manager Workspace</h2>
+            <p class="text-muted">Welcome, <span th:text="${currentUser.user.name}"></span></p>
         </div>
     </div>
     
     <div class="row">
-        <div class="col-md-12">
+        <!-- Organization Profile Card -->
+        <div class="col-md-12 mb-4">
             <div class="card shadow-sm">
-                <div class="card-body text-center py-5">
-                    <h5 class="text-muted">Manager Workspace Placeholder</h5>
-                    <p>Your organization profile, events, and campaigns will appear here.</p>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Organization Profile</h5>
+                    <span th:if="${organization.status.name() == 'DRAFT'}" class="badge bg-secondary">Draft</span>
+                    <span th:if="${organization.status.name() == 'PENDING_VERIFICATION'}" class="badge bg-warning text-dark">Pending Verification</span>
+                    <span th:if="${organization.status.name() == 'VERIFIED'}" class="badge bg-success">Verified</span>
+                    <span th:if="${organization.status.name() == 'REJECTED'}" class="badge bg-danger">Rejected</span>
+                    <span th:if="${organization.status.name() == 'RETURNED_FOR_CORRECTION'}" class="badge bg-info text-dark">Returned for Correction</span>
+                </div>
+                <div class="card-body">
+                    <h4 th:text="${organization.name}">Org Name</h4>
+                    <p><strong>Causes:</strong> <span th:text="${organization.causes ?: 'Not provided'}"></span> | <strong>City:</strong> <span th:text="${organization.city}"></span></p>
+                    <p th:text="${organization.description ?: 'Not provided'}"></p>
+                    
+                    <div th:if="${organization.status.name() == 'REJECTED' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}" class="alert alert-warning mt-3">
+                        <strong>Admin Note:</strong> <span th:text="${organization.reviewReason}"></span>
+                    </div>
+
+                    <div class="mt-4 d-flex gap-2">
+                        <a th:href="@{/organization/{id}(id=${organization.id})}" class="btn btn-outline-primary">View Public Page</a>
+                        
+                        <a th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'REJECTED' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}" 
+                           th:href="@{/manager/organization/edit}" class="btn btn-primary">Edit Profile</a>
+                           
+                        <form th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'REJECTED' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}"
+                              th:action="@{/manager/organization/submit}" method="post">
+                            <button type="submit" class="btn btn-success" onclick="return confirm('Submit for verification? Make sure all fields are complete.')">Submit for Verification</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

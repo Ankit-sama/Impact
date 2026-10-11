@@ -32,6 +32,7 @@ public class Organization {
     private String reviewReason;
     private Long reviewedBy;
     private Instant reviewedAt;
+    private Instant submittedAt;
 
     // Getters and Setters
     public Long getId() { return id; } public void setId(Long id) { this.id = id; }
@@ -46,4 +47,5 @@ public class Organization {
     public String getReviewReason() { return reviewReason; } public void setReviewReason(String reviewReason) { this.reviewReason = reviewReason; }
     public Long getReviewedBy() { return reviewedBy; } public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
     public Instant getReviewedAt() { return reviewedAt; } public void setReviewedAt(Instant reviewedAt) { this.reviewedAt = reviewedAt; }
+    public Instant getSubmittedAt() { return submittedAt; } public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
 }

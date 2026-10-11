@@ -28,6 +28,8 @@ public class SecurityConfig {
                 .requestMatchers("/volunteer/**").hasAuthority("ROLE_VOLUNTEER")
                 .requestMatchers("/manager/**").hasAuthority("ROLE_ORG_MANAGER")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
+                // Allow public org page viewing
+                .requestMatchers("/organization/**").permitAll()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
@@ -38,9 +40,11 @@ public class SecurityConfig {
             )
             .logout(logout -> logout
                 .logoutSuccessUrl("/login?logout=true")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
                 .permitAll()
             )
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/demo/**")); // Allow demo tools later
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/demo/**"));
 
         return http.build();
     }

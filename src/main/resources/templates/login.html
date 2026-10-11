@@ -12,10 +12,13 @@
             <h2 class="text-center mb-4">Welcome to impACT</h2>
 
             <div th:if="${param.error}" class="alert alert-danger">
-                Invalid username or password. (Or account is inactive or not yet created)
+                Invalid username or password. (Or account is inactive)
             </div>
             <div th:if="${param.logout}" class="alert alert-success">
                 You have been logged out.
+            </div>
+            <div th:if="${param.reset}" class="alert alert-info">
+                Demo data reset. Please log in again.
             </div>
             <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
 

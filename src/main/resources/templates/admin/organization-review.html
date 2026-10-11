@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header('Review Organization - impACT')}"></head>
+<body class="bg-light">
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="d-flex align-items-center mb-4">
+                <button type="button" class="btn btn-outline-secondary btn-sm me-3" onclick="history.back()"><i class="bi bi-arrow-left"></i> Back</button>
+                <h3 class="mb-0">Review Organization</h3>
+            </div>
+            
+            <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h4 th:text="${organization.name}">Org Name</h4>
+                    <hr>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">City:</div>
+                        <div class="col-sm-8" th:text="${organization.city}"></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Causes:</div>
+                        <div class="col-sm-8" th:text="${organization.causes ?: 'Not provided'}"></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Contact Email:</div>
+                        <div class="col-sm-8" th:text="${organization.contactEmail ?: 'Not provided'}"></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Reg Number:</div>
+                        <div class="col-sm-8"><kbd th:text="${organization.registrationNumber ?: 'Not provided'}"></kbd></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted">Description:</div>
+                        <div class="col-sm-8" th:text="${organization.description ?: 'Not provided'}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white">Record Decision</div>
+                <div class="card-body">
+                    <form th:action="@{/admin/organization/{id}/review(id=${organization.id})}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label">Decision</label>
+                            <select class="form-select" name="decision" id="decisionSelect" required onchange="toggleReason()">
+                                <option value="" disabled selected>Select an outcome...</option>
+                                <option value="VERIFIED">Approve (Verified)</option>
+                                <option value="RETURNED_FOR_CORRECTION">Return for Correction</option>
+                                <option value="REJECTED">Reject</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="reasonDiv" style="display: none;">
+                            <label class="form-label">Reason (Required for Return/Reject)</label>
+                            <textarea class="form-control" name="reason" rows="3"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-primary">Save Decision</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleReason() {
+        const decision = document.getElementById("decisionSelect").value;
+        const reasonDiv = document.getElementById("reasonDiv");
+        if (decision === 'RETURNED_FOR_CORRECTION' || decision === 'REJECTED') {
+            reasonDiv.style.display = 'block';
+        } else {
+            reasonDiv.style.display = 'none';
+        }
+    }
+</script>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

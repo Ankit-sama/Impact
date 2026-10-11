@@ -2,7 +2,9 @@ package com.impact.admin;
 
 import com.impact.config.AppClock;
 import com.impact.scheduler.LifecycleService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,20 +26,22 @@ public class DemoController {
     }
 
     @PostMapping("/reset")
-    public String resetAndSeed() {
+    public String resetAndSeed(HttpServletRequest request) {
         seeder.resetAndSeed();
-        return "redirect:/login?logout=true"; // Force logout to ensure clean state
+        request.getSession().invalidate();
+        SecurityContextHolder.clearContext();
+        return "redirect:/login?reset=true"; 
     }
 
     @PostMapping("/tick")
     public String runTick() {
         lifecycleService.tick();
-        return "redirect:/"; // Will bounce back to appropriate dashboard
+        return "redirect:/"; 
     }
 
     @PostMapping("/skip")
     public String skipTime(@RequestParam long minutes) {
         appClock.addMinutes(minutes);
-        return "redirect:/"; // Will bounce back to appropriate dashboard
+        return "redirect:/"; 
     }
 }

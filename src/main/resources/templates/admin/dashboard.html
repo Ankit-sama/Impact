@@ -6,23 +6,49 @@
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
 
 <div class="container">
+    <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
+    <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
+
     <div class="row mb-4">
         <div class="col">
             <h2>Admin Panel</h2>
-            <p class="text-muted">Role: Administrator | System Management</p>
         </div>
     </div>
     
     <div class="row">
-        <div class="col-md-4 mb-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center py-4">
-                    <h5 class="card-title">Organizations to Verify</h5>
-                    <p class="text-muted small">Placeholder for Organization queue</p>
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Organizations to Verify</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Organization Name</th>
+                                <th>City</th>
+                                <th>Submitted At (UTC)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="org : ${pendingOrgs}">
+                                <td th:text="${org.name}"></td>
+                                <td th:text="${org.city}"></td>
+                                <!-- Added null check and date formatting -->
+                                <td th:text="${org.submittedAt != null ? #temporals.format(org.submittedAt, 'dd MMM yyyy, HH:mm') : 'Not submitted'}"></td>
+                                <td><a class="btn btn-sm btn-primary" th:href="@{/admin/organization/{id}/review(id=${org.id})}">Review</a></td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(pendingOrgs)}">
+                                <td colspan="4" class="text-center text-muted py-3">No organizations pending verification.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
+
+        <div class="col-md-6 mb-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center py-4">
                     <h5 class="card-title">Proofs to Review</h5>
@@ -30,7 +56,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
+        <div class="col-md-6 mb-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center py-4">
                     <h5 class="card-title">Expenses to Review</h5>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header(${organization.name} + ' - impACT')}"></head>
+<body class="bg-light">
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div th:if="${currentUser != null}" class="mb-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="history.back()"><i class="bi bi-arrow-left"></i> Back</button>
+            </div>
+            <div class="card shadow border-0">
+                <div class="card-body text-center py-5">
+                    
+                    <span th:if="${organization.status.name() == 'VERIFIED'}" class="badge bg-success mb-2 fs-6">Verified Organization</span>
+                    <span th:unless="${organization.status.name() == 'VERIFIED'}" class="badge bg-secondary mb-2 fs-6">Unverified</span>
+
+                    <h1 class="display-5 fw-bold" th:text="${organization.name}">Org Name</h1>
+                    <p class="text-muted lead mb-4">
+                        <i class="bi bi-geo-alt"></i> <span th:text="${organization.city}">City</span> 
+                        | Causes: <span th:text="${organization.causes ?: 'Not provided'}">Causes</span>
+                    </p>
+                    
+                    <div class="row justify-content-center mb-5">
+                        <div class="col-4">
+                            <div class="border rounded p-3 bg-light">
+                                <h3 class="mb-0">0</h3>
+                                <small class="text-muted">Verified Events</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="border rounded p-3 bg-light">
+                                <h3 class="mb-0">0</h3>
+                                <small class="text-muted">Verified Hours</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-start px-4">
+                        <h5 class="border-bottom pb-2">About Us</h5>
+                        <p style="white-space: pre-wrap;" th:text="${organization.description ?: 'Not provided'}"></p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>
