@@ -17,8 +17,11 @@
             <div th:if="${param.logout}" class="alert alert-success">
                 You have been logged out.
             </div>
-            <div th:if="${param.reset}" class="alert alert-info">
+            <div th:if="${param.resetSuccess}" class="alert alert-info">
                 Demo data reset. Please log in again.
+            </div>
+            <div th:if="${param.resetError}" class="alert alert-danger">
+                Reset failed. See the server log.
             </div>
             <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
 

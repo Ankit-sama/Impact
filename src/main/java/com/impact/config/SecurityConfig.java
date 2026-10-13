@@ -28,7 +28,6 @@ public class SecurityConfig {
                 .requestMatchers("/volunteer/**").hasAuthority("ROLE_VOLUNTEER")
                 .requestMatchers("/manager/**").hasAuthority("ROLE_ORG_MANAGER")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
-                // Allow public org page viewing
                 .requestMatchers("/organization/**").permitAll()
                 .anyRequest().authenticated()
             )
@@ -39,8 +38,10 @@ public class SecurityConfig {
                 .permitAll()
             )
             .logout(logout -> logout
+                .logoutUrl("/logout")
                 .logoutSuccessUrl("/login?logout=true")
                 .invalidateHttpSession(true)
+                .clearAuthentication(true)
                 .deleteCookies("JSESSIONID")
                 .permitAll()
             )

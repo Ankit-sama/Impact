@@ -6,6 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 
 @Controller
 public class NotificationController {
@@ -23,7 +24,7 @@ public class NotificationController {
         return "notifications";
     }
 
-    @GetMapping("/notifications/read/{id}")
+    @PostMapping("/notifications/{id}/read")
     public String markReadAndRedirect(@PathVariable Long id, Authentication authentication) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         String link = notificationService.markAsReadAndGetLink(id, userDetails.getUser().getId());

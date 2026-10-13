@@ -14,17 +14,20 @@
             </div>
             
             <div class="list-group shadow-sm">
-                <a th:each="note : ${notifications}" 
-                   th:href="@{/notifications/read/{id}(id=${note.id})}" 
-                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                   th:classappend="${!note.read} ? 'list-group-item-light fw-bold' : 'text-muted'">
-                    
-                    <div>
-                        <span th:if="${!note.read}" class="badge bg-danger rounded-circle p-1 me-2"><span class="visually-hidden">Unread</span></span>
-                        <span th:text="${note.message}">Notification message</span>
-                    </div>
-                    <small th:text="${#temporals.format(note.createdAt, 'dd MMM HH:mm')}">Time</small>
-                </a>
+                <!-- Changed to POST forms -->
+                <form th:each="note : ${notifications}" 
+                      th:action="@{/notifications/{id}/read(id=${note.id})}" 
+                      method="post" class="m-0 p-0">
+                    <button type="submit" 
+                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-0 border-bottom"
+                            th:classappend="${!note.read} ? 'list-group-item-light fw-bold' : 'text-muted'">
+                        <div>
+                            <span th:if="${!note.read}" class="badge bg-danger rounded-circle p-1 me-2"><span class="visually-hidden">Unread</span></span>
+                            <span th:text="${note.message}">Notification message</span>
+                        </div>
+                        <small th:text="${#temporals.format(note.createdAt, 'dd MMM HH:mm')}">Time</small>
+                    </button>
+                </form>
                 
                 <div th:if="${#lists.isEmpty(notifications)}" class="list-group-item text-center text-muted py-4">
                     You have no notifications.
