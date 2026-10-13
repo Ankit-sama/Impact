@@ -2,13 +2,17 @@ package com.impact.auth;
 
 import com.impact.auth.dto.RegisterRequest;
 import com.impact.user.Role;
+import com.impact.user.User;
+import com.impact.user.UserRepository;
 import com.impact.user.UserStatus;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -21,20 +25,27 @@ public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     private final AuthService authService;
+    private final UserRepository userRepository;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UserRepository userRepository) {
         this.authService = authService;
+        this.userRepository = userRepository;
     }
 
     private String getRedirectForAuthenticatedUser(Authentication auth) {
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-        if (userDetails.getUser().getStatus() == UserStatus.PENDING_VERIFICATION) {
+        CustomUserDetails sessionDetails = (CustomUserDetails) auth.getPrincipal();
+        // NEVER trust the session status; fetch fresh from DB
+        User dbUser = userRepository.findById(sessionDetails.getUser().getId()).orElse(null);
+        if (dbUser == null) return null;
+        
+        if (dbUser.getStatus() == UserStatus.PENDING_VERIFICATION) {
             return "redirect:/otp";
         }
-        Role role = userDetails.getUser().getRole();
+        
+        Role role = dbUser.getRole();
         if (role == Role.ROLE_VOLUNTEER) return "redirect:/volunteer/dashboard";
         if (role == Role.ROLE_ORG_MANAGER) return "redirect:/manager/dashboard";
         if (role == Role.ROLE_ADMIN) return "redirect:/admin/dashboard";
@@ -101,7 +112,13 @@ public class AuthController {
 
     @GetMapping("/otp")
     public String showOtpForm(Model model, Authentication authentication) {
+        // Re-check status so an ACTIVE user opening /otp directly is bounced
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User dbUser = userRepository.findById(userDetails.getUser().getId()).orElseThrow();
+        if (dbUser.getStatus() != UserStatus.PENDING_VERIFICATION) {
+            return "redirect:/";
+        }
+
         String lastPhone = authService.getLastPhoneForUser(userDetails.getUser().getId());
         if (!model.containsAttribute("phone") && lastPhone != null) {
             model.addAttribute("phone", lastPhone);
@@ -131,16 +148,26 @@ public class AuthController {
     }
 
     @PostMapping("/otp/verify")
-    public String verifyOtp(@RequestParam String code, Authentication authentication, RedirectAttributes redirectAttributes) {
+    public String verifyOtp(@RequestParam String code, Authentication authentication, 
+                            HttpServletRequest request, HttpServletResponse response, 
+                            RedirectAttributes redirectAttributes) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        boolean isValid = authService.verifyOtp(userDetails.getUser().getId(), code);
-
-        if (isValid) {
-            SecurityContextHolder.clearContext();
-            redirectAttributes.addFlashAttribute("successMsg", "Account verified successfully! Please log in.");
-            return "redirect:/login";
-        } else {
-            redirectAttributes.addFlashAttribute("errorMsg", "Invalid OTP code.");
+        Long userId = userDetails.getUser().getId();
+        
+        try {
+            boolean isValid = authService.verifyOtp(userId, code);
+            if (isValid) {
+                // Kill session immediately so the next request gets fresh state
+                new SecurityContextLogoutHandler().logout(request, response, authentication);
+                return "redirect:/login?verified=true";
+            } else {
+                redirectAttributes.addFlashAttribute("errorMsg", "Incorrect code. Please try again.");
+                redirectAttributes.addFlashAttribute("phone", authService.getLastPhoneForUser(userId));
+                return "redirect:/otp";
+            }
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("errorMsg", e.getMessage());
+            redirectAttributes.addFlashAttribute("phone", authService.getLastPhoneForUser(userId));
             return "redirect:/otp";
         }
     }

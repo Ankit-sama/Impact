@@ -31,6 +31,7 @@ public class DashboardController {
     @GetMapping("/admin/dashboard")
     public String adminDashboard(Model model) {
         model.addAttribute("pendingOrgs", organizationService.getPendingOrganizations());
+        model.addAttribute("rejectedOrgs", organizationService.getRejectedOrganizations());
         return "admin/dashboard";
     }
 }

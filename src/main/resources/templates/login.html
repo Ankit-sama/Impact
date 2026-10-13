@@ -17,6 +17,9 @@
             <div th:if="${param.logout}" class="alert alert-success">
                 You have been logged out.
             </div>
+            <div th:if="${param.verified}" class="alert alert-success fw-bold">
+                Phone verified. Please log in.
+            </div>
             <div th:if="${param.resetSuccess}" class="alert alert-info">
                 Demo data reset. Please log in again.
             </div>

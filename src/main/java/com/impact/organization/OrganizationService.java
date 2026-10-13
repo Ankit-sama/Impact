@@ -2,6 +2,7 @@ package com.impact.organization;
 
 import com.impact.admin.ActivityLogService;
 import com.impact.config.AppClock;
+import com.impact.config.ImpactProperties;
 import com.impact.notification.NotificationService;
 import com.impact.organization.dto.OrganizationDto;
 import org.springframework.stereotype.Service;
@@ -17,13 +18,16 @@ public class OrganizationService {
     private final AppClock appClock;
     private final ActivityLogService activityLogService;
     private final NotificationService notificationService;
+    private final ImpactProperties impactProperties;
 
     public OrganizationService(OrganizationRepository organizationRepository, AppClock appClock,
-                               ActivityLogService activityLogService, NotificationService notificationService) {
+                               ActivityLogService activityLogService, NotificationService notificationService,
+                               ImpactProperties impactProperties) {
         this.organizationRepository = organizationRepository;
         this.appClock = appClock;
         this.activityLogService = activityLogService;
         this.notificationService = notificationService;
+        this.impactProperties = impactProperties;
     }
 
     public Organization getOrganizationByManagerId(Long managerId) {
@@ -39,11 +43,15 @@ public class OrganizationService {
         return organizationRepository.findAllByStatusOrderBySubmittedAtAsc(OrgStatus.PENDING_VERIFICATION);
     }
 
+    public List<Organization> getRejectedOrganizations() {
+        return organizationRepository.findAllByStatusOrderBySubmittedAtAsc(OrgStatus.REJECTED);
+    }
+
     @Transactional
     public void updateOrganization(Long managerId, OrganizationDto dto) {
         Organization org = getOrganizationByManagerId(managerId);
-        if (org.getStatus() == OrgStatus.VERIFIED || org.getStatus() == OrgStatus.PENDING_VERIFICATION) {
-            throw new IllegalStateException("Cannot edit organization in its current status.");
+        if (org.getStatus() != OrgStatus.DRAFT && org.getStatus() != OrgStatus.RETURNED_FOR_CORRECTION) {
+            throw new IllegalStateException("Organization can only be edited when Draft or Returned for Correction.");
         }
         org.setName(dto.getName());
         org.setCauses(dto.getCauses());
@@ -57,8 +65,8 @@ public class OrganizationService {
     @Transactional
     public void submitForVerification(Long managerId) {
         Organization org = getOrganizationByManagerId(managerId);
-        if (org.getStatus() == OrgStatus.VERIFIED || org.getStatus() == OrgStatus.PENDING_VERIFICATION) {
-            throw new IllegalStateException("Already submitted or verified.");
+        if (org.getStatus() != OrgStatus.DRAFT && org.getStatus() != OrgStatus.RETURNED_FOR_CORRECTION) {
+            throw new IllegalStateException("Organization can only be submitted when Draft or Returned for Correction.");
         }
         if (org.getCauses() == null || org.getDescription() == null || org.getContactEmail() == null || org.getRegistrationNumber() == null) {
             throw new IllegalStateException("All fields must be filled to submit.");
@@ -83,6 +91,15 @@ public class OrganizationService {
             throw new IllegalArgumentException("Reason is required for Rejection or Return.");
         }
 
+        int maxRounds = impactProperties.getOrganization().getMaxCorrectionRounds();
+
+        if (decision == OrgStatus.RETURNED_FOR_CORRECTION) {
+            if (org.getCorrectionRounds() >= maxRounds) {
+                throw new IllegalStateException("Maximum correction rounds reached.");
+            }
+            org.setCorrectionRounds(org.getCorrectionRounds() + 1);
+        }
+
         org.setStatus(decision);
         org.setReviewReason(reason);
         org.setReviewedBy(adminId);
@@ -99,10 +116,33 @@ public class OrganizationService {
         if (decision == OrgStatus.VERIFIED) {
             msg = "Your organization '" + org.getName() + "' has been approved.";
         } else if (decision == OrgStatus.REJECTED) {
-            msg = "Your organization '" + org.getName() + "' was rejected. Reason: " + reason;
+            msg = "Your organization '" + org.getName() + "' was rejected. This decision is final. Reason: " + reason;
         } else {
-            msg = "Your organization '" + org.getName() + "' was returned for correction. Reason: " + reason;
+            msg = "Your organization '" + org.getName() + "' was returned for correction (round " + org.getCorrectionRounds() + " of " + maxRounds + "). Reason: " + reason;
         }
         notificationService.createNotification(org.getManagerId(), msg, "/manager/dashboard");
+    }
+
+    @Transactional
+    public void reopenOrganization(Long adminId, Long orgId, String reason) {
+        Organization org = organizationRepository.findById(orgId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+
+        if (org.getStatus() != OrgStatus.REJECTED) {
+            throw new IllegalStateException("Only rejected organizations can be reopened.");
+        }
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new IllegalArgumentException("Reason is required to reopen.");
+        }
+
+        org.setStatus(OrgStatus.RETURNED_FOR_CORRECTION);
+        // Note: Reopening does not increment correctionRounds
+        organizationRepository.save(org);
+
+        activityLogService.logAction(adminId, "ORGANIZATION_REOPENED", "ORGANIZATION", orgId, "Reason: " + reason);
+        
+        notificationService.createNotification(org.getManagerId(), 
+                "Your organization '" + org.getName() + "' was reopened for correction. Reason: " + reason, 
+                "/manager/dashboard");
     }
 }

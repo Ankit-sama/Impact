@@ -45,7 +45,6 @@ public class AuthService {
 
     @Transactional
     public void registerUser(RegisterRequest request) throws Exception {
-        // ENFORCE ROLE RESTRICTION: Reject ADMIN registration even if form was manipulated
         if (request.getRole() == Role.ROLE_ADMIN) {
             throw new IllegalArgumentException("Registration as ADMIN is not permitted.");
         }
@@ -89,20 +88,22 @@ public class AuthService {
             org.setName(request.getOrgName());
             org.setCity(request.getCity());
             org.setStatus(OrgStatus.DRAFT);
+            org.setCorrectionRounds(0);
             organizationRepository.save(org);
         }
     }
 
     @Transactional
     public String generateOtp(Long userId, String phone) {
-        if (userRepository.existsByPhone(phone)) {
-            throw new IllegalArgumentException("Phone number is already in use");
+        // Only reject if phone belongs to ANOTHER user
+        if (userRepository.existsByPhoneAndIdNot(phone, userId)) {
+            throw new IllegalArgumentException("Phone number is already in use by another account");
         }
         String otpCode = otpSender.sendOtp(phone);
         
         OtpRecord record = new OtpRecord();
         record.setUserId(userId);
-        record.setPhone(phone);
+        record.setPhone(phone); // Saved temporarily here
         record.setCodeHash(passwordEncoder.encode(otpCode));
         record.setCreatedAt(appClock.now());
         otpRecordRepository.save(record);
@@ -118,6 +119,10 @@ public class AuthService {
         }
         OtpRecord record = recordOpt.get();
         if (passwordEncoder.matches(code, record.getCodeHash())) {
+            // Check uniqueness again just in case another transaction sneaked in
+            if (userRepository.existsByPhoneAndIdNot(record.getPhone(), userId)) {
+                throw new IllegalStateException("Phone number was claimed by another user while verifying");
+            }
             User user = userRepository.findById(userId).orElseThrow();
             user.setPhone(record.getPhone());
             user.setStatus(UserStatus.ACTIVE);

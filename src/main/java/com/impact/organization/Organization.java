@@ -34,6 +34,9 @@ public class Organization {
     private Instant reviewedAt;
     private Instant submittedAt;
 
+    @Column(columnDefinition = "integer default 0")
+    private Integer correctionRounds = 0;
+
     // Getters and Setters
     public Long getId() { return id; } public void setId(Long id) { this.id = id; }
     public Long getManagerId() { return managerId; } public void setManagerId(Long managerId) { this.managerId = managerId; }
@@ -48,4 +51,5 @@ public class Organization {
     public Long getReviewedBy() { return reviewedBy; } public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
     public Instant getReviewedAt() { return reviewedAt; } public void setReviewedAt(Instant reviewedAt) { this.reviewedAt = reviewedAt; }
     public Instant getSubmittedAt() { return submittedAt; } public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
+    public int getCorrectionRounds() { return correctionRounds == null ? 0 : correctionRounds; } public void setCorrectionRounds(Integer correctionRounds) { this.correctionRounds = correctionRounds; }
 }

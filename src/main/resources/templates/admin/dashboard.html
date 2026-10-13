@@ -16,6 +16,7 @@
     </div>
     
     <div class="row">
+        <!-- Pending Verification Queue -->
         <div class="col-md-12 mb-4">
             <div class="card shadow-sm">
                 <div class="card-header bg-white">
@@ -35,12 +36,71 @@
                             <tr th:each="org : ${pendingOrgs}">
                                 <td th:text="${org.name}"></td>
                                 <td th:text="${org.city}"></td>
-                                <!-- Added null check and date formatting -->
                                 <td th:text="${org.submittedAt != null ? #temporals.format(org.submittedAt, 'dd MMM yyyy, HH:mm') : 'Not submitted'}"></td>
                                 <td><a class="btn btn-sm btn-primary" th:href="@{/admin/organization/{id}/review(id=${org.id})}">Review</a></td>
                             </tr>
                             <tr th:if="${#lists.isEmpty(pendingOrgs)}">
                                 <td colspan="4" class="text-center text-muted py-3">No organizations pending verification.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rejected Organizations Queue -->
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Rejected Organizations</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Organization Name</th>
+                                <th>City</th>
+                                <th>Rejected At (UTC)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="org : ${rejectedOrgs}">
+                                <td th:text="${org.name}"></td>
+                                <td th:text="${org.city}"></td>
+                                <td th:text="${org.reviewedAt != null ? #temporals.format(org.reviewedAt, 'dd MMM yyyy, HH:mm') : 'Unknown'}"></td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" th:data-bs-target="'#reopenModal' + ${org.id}">Reopen</button>
+                                    
+                                    <!-- Reopen Modal -->
+                                    <div class="modal fade" th:id="'reopenModal' + ${org.id}" tabindex="-1">
+                                      <div class="modal-dialog">
+                                        <form th:action="@{/admin/organization/{id}/reopen(id=${org.id})}" method="post">
+                                          <div class="modal-content">
+                                            <div class="modal-header">
+                                              <h5 class="modal-title">Reopen Organization</h5>
+                                              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                              <p>Reopening <strong><span th:text="${org.name}"></span></strong> will set its status to Returned for Correction, allowing the manager to edit and resubmit.</p>
+                                              <div class="mb-3">
+                                                <label class="form-label">Reason for reopening</label>
+                                                <textarea class="form-control" name="reopenReason" required rows="3"></textarea>
+                                              </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                              <button type="submit" class="btn btn-danger">Confirm Reopen</button>
+                                            </div>
+                                          </div>
+                                        </form>
+                                      </div>
+                                    </div>
+
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(rejectedOrgs)}">
+                                <td colspan="4" class="text-center text-muted py-3">No rejected organizations.</td>
                             </tr>
                         </tbody>
                     </table>

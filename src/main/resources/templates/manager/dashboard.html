@@ -33,17 +33,27 @@
                     <p><strong>Causes:</strong> <span th:text="${organization.causes ?: 'Not provided'}"></span> | <strong>City:</strong> <span th:text="${organization.city}"></span></p>
                     <p th:text="${organization.description ?: 'Not provided'}"></p>
                     
-                    <div th:if="${organization.status.name() == 'REJECTED' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}" class="alert alert-warning mt-3">
-                        <strong>Admin Note:</strong> <span th:text="${organization.reviewReason}"></span>
+                    <div th:if="${organization.status.name() == 'PENDING_VERIFICATION'}" class="alert alert-info mt-3">
+                        Awaiting admin review.
+                    </div>
+
+                    <div th:if="${organization.status.name() == 'REJECTED'}" class="alert alert-danger mt-3">
+                        <strong>Admin Note:</strong> <span th:text="${organization.reviewReason}"></span><br>
+                        <em>This decision is final.</em>
+                    </div>
+
+                    <div th:if="${organization.status.name() == 'RETURNED_FOR_CORRECTION'}" class="alert alert-warning mt-3">
+                        <strong>Admin Note:</strong> <span th:text="${organization.reviewReason}"></span><br>
+                        <em>Correction round <span th:text="${organization.correctionRounds}"></span> of 3</em>
                     </div>
 
                     <div class="mt-4 d-flex gap-2">
                         <a th:href="@{/organization/{id}(id=${organization.id})}" class="btn btn-outline-primary">View Public Page</a>
                         
-                        <a th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'REJECTED' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}" 
+                        <a th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}" 
                            th:href="@{/manager/organization/edit}" class="btn btn-primary">Edit Profile</a>
                            
-                        <form th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'REJECTED' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}"
+                        <form th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}"
                               th:action="@{/manager/organization/submit}" method="post">
                             <button type="submit" class="btn btn-success" onclick="return confirm('Submit for verification? Make sure all fields are complete.')">Submit for Verification</button>
                         </form>

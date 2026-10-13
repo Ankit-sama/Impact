@@ -15,6 +15,10 @@
             
             <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
 
+            <div th:if="${organization.correctionRounds > 0}" class="alert alert-info">
+                This organization has been returned for correction <strong><span th:text="${organization.correctionRounds}"></span></strong> time(s) before.
+            </div>
+
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <h4 th:text="${organization.name}">Org Name</h4>
@@ -51,7 +55,7 @@
                             <select class="form-select" name="decision" id="decisionSelect" required onchange="toggleReason()">
                                 <option value="" disabled selected>Select an outcome...</option>
                                 <option value="VERIFIED">Approve (Verified)</option>
-                                <option value="RETURNED_FOR_CORRECTION">Return for Correction</option>
+                                <option th:if="${organization.correctionRounds < maxRounds}" value="RETURNED_FOR_CORRECTION">Return for Correction</option>
                                 <option value="REJECTED">Reject</option>
                             </select>
                         </div>
@@ -75,8 +79,10 @@
         const reasonDiv = document.getElementById("reasonDiv");
         if (decision === 'RETURNED_FOR_CORRECTION' || decision === 'REJECTED') {
             reasonDiv.style.display = 'block';
+            document.querySelector("textarea[name='reason']").required = true;
         } else {
             reasonDiv.style.display = 'none';
+            document.querySelector("textarea[name='reason']").required = false;
         }
     }
 </script>

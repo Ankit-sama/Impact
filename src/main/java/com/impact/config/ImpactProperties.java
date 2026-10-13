@@ -11,6 +11,11 @@ public class ImpactProperties {
     public static class Workforce { private int thresholdPercent; public int getThresholdPercent() { return thresholdPercent; } public void setThresholdPercent(int thresholdPercent) { this.thresholdPercent = thresholdPercent; } }
     public static class Similarity { private int windowDays; public int getWindowDays() { return windowDays; } public void setWindowDays(int windowDays) { this.windowDays = windowDays; } }
     public static class Upload { private String dir; public String getDir() { return dir; } public void setDir(String dir) { this.dir = dir; } }
+    public static class Organization { 
+        private int maxCorrectionRounds = 3; 
+        public int getMaxCorrectionRounds() { return maxCorrectionRounds; } 
+        public void setMaxCorrectionRounds(int maxCorrectionRounds) { this.maxCorrectionRounds = maxCorrectionRounds; } 
+    }
 
     private Scheduler scheduler = new Scheduler();
     private Event event = new Event();
@@ -18,12 +23,13 @@ public class ImpactProperties {
     private Workforce workforce = new Workforce();
     private Similarity similarity = new Similarity();
     private Upload upload = new Upload();
+    private Organization organization = new Organization();
 
-    // Getters and Setters
     public Scheduler getScheduler() { return scheduler; } public void setScheduler(Scheduler scheduler) { this.scheduler = scheduler; }
     public Event getEvent() { return event; } public void setEvent(Event event) { this.event = event; }
     public Proof getProof() { return proof; } public void setProof(Proof proof) { this.proof = proof; }
     public Workforce getWorkforce() { return workforce; } public void setWorkforce(Workforce workforce) { this.workforce = workforce; }
     public Similarity getSimilarity() { return similarity; } public void setSimilarity(Similarity similarity) { this.similarity = similarity; }
     public Upload getUpload() { return upload; } public void setUpload(Upload upload) { this.upload = upload; }
+    public Organization getOrganization() { return organization; } public void setOrganization(Organization organization) { this.organization = organization; }
 }
