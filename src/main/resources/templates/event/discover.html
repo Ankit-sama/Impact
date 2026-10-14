@@ -5,6 +5,8 @@
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
 
 <div class="container mb-5">
+    <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
+    
     <div class="row mb-4">
         <div class="col">
             <h2>Discover Events</h2>
@@ -15,27 +17,31 @@
     <!-- Search/Filter Form -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form th:action="@{/discover}" method="get" class="row g-3">
+            <form th:action="@{/discover}" method="get" class="row g-3 align-items-end">
                 <div class="col-md-3">
-                    <input type="text" class="form-control" name="keyword" placeholder="Search title or purpose..." th:value="${keyword}">
+                    <label class="form-label small text-muted mb-0">Search</label>
+                    <input type="text" class="form-control" name="keyword" placeholder="Title or purpose..." th:value="${keyword}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-0">Category</label>
                     <select class="form-select" name="category">
-                        <option value="">All Categories</option>
+                        <option value="">All</option>
                         <option th:each="cat : ${categories}" th:value="${cat.name()}" th:text="${cat.displayName}" th:selected="${category != null and category.name() == cat.name()}"></option>
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <label class="form-label small text-muted mb-0">City</label>
                     <input type="text" class="form-control" name="city" placeholder="City..." th:value="${city}">
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="dateRange">
-                        <option value="">Any Date</option>
-                        <option value="upcoming7" th:selected="${dateRange == 'upcoming7'}">Next 7 Days</option>
-                        <option value="upcoming30" th:selected="${dateRange == 'upcoming30'}">Next 30 Days</option>
-                    </select>
+                    <label class="form-label small text-muted mb-0">From Date</label>
+                    <input type="date" class="form-control" name="startFrom" th:value="${startFrom}">
                 </div>
-                <div class="col-md-2 d-grid">
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-0">To Date</label>
+                    <input type="date" class="form-control" name="startTo" th:value="${startTo}">
+                </div>
+                <div class="col-md-1 d-grid">
                     <button type="submit" class="btn btn-primary">Search</button>
                 </div>
             </form>

@@ -9,11 +9,15 @@ import com.impact.organization.OrganizationRepository;
 import com.impact.user.Role;
 import com.impact.user.User;
 import com.impact.user.UserRepository;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -56,21 +60,44 @@ public class EventService {
         return event;
     }
 
-    public List<Event> searchDiscoverEvents(String keyword, EventCategory category, String city, String dateRange) {
-        Instant startFrom = null;
-        Instant startTo = null;
+    public Event getPublicEventDetails(Long eventId, Long requestingUserId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
         
-        // Very basic date range handling for Discover filters if provided later
-        if (dateRange != null && dateRange.equals("upcoming7")) {
-            startFrom = appClock.now();
-            startTo = appClock.now().plus(7, ChronoUnit.DAYS);
-        } else if (dateRange != null && dateRange.equals("upcoming30")) {
-            startFrom = appClock.now();
-            startTo = appClock.now().plus(30, ChronoUnit.DAYS);
+        // Block unauthorized access to Drafts
+        if (event.getStatus() == EventStatus.DRAFT) {
+            if (requestingUserId == null || !event.getCreatorId().equals(requestingUserId)) {
+                throw new IllegalStateException("This event has not been published yet.");
+            }
+        }
+        return event;
+    }
+
+    public List<Event> searchDiscoverEvents(String keyword, EventCategory category, String city, String startFrom, String startTo) {
+        Instant fromInstant = null;
+        Instant toInstant = null;
+        
+        try {
+            if (startFrom != null && !startFrom.isBlank()) {
+                fromInstant = LocalDate.parse(startFrom).atStartOfDay(IST_ZONE).toInstant();
+            }
+            if (startTo != null && !startTo.isBlank()) {
+                toInstant = LocalDate.parse(startTo).atTime(LocalTime.MAX).atZone(IST_ZONE).toInstant();
+            }
+        } catch (Exception e) {
+            // Ignore parse errors, filters gracefully fallback to null
         }
 
         List<EventStatus> visibleStatuses = List.of(EventStatus.PUBLISHED, EventStatus.IN_PROGRESS);
-        return eventRepository.findDiscoverEvents(visibleStatuses, keyword, category, city, startFrom, startTo);
+
+        Specification<Event> spec = Specification.where(EventSpecifications.isStatusIn(visibleStatuses))
+                .and(EventSpecifications.hasKeyword(keyword))
+                .and(EventSpecifications.hasCategory(category))
+                .and(EventSpecifications.hasCity(city))
+                .and(EventSpecifications.startsAfter(fromInstant))
+                .and(EventSpecifications.startsBefore(toInstant));
+
+        return eventRepository.findAll(spec, Sort.by(Sort.Direction.ASC, "startAt"));
     }
 
     @Transactional
@@ -156,6 +183,12 @@ public class EventService {
         return dto;
     }
 
+    public User getEventCreator(Long creatorId) {
+        return userRepository.findById(creatorId).orElse(null);
+    }
+
+    // --- RESTORED HELPER METHODS BELOW ---
+
     private void validateEventTiming(EventFormDto dto) {
         Instant start = dto.getStartAtLocal().atZone(IST_ZONE).toInstant();
         Instant end = dto.getEndAtLocal().atZone(IST_ZONE).toInstant();
@@ -195,10 +228,5 @@ public class EventService {
         event.setCity(dto.getCity());
         event.setAddress(dto.getAddress());
         event.setCapacity(dto.getCapacity());
-    }
-
-    // Helper for Details page
-    public User getEventCreator(Long creatorId) {
-        return userRepository.findById(creatorId).orElse(null);
     }
 }

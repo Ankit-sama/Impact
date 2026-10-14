@@ -37,7 +37,6 @@ public class AuthController {
             return null;
         }
         CustomUserDetails sessionDetails = (CustomUserDetails) auth.getPrincipal();
-        // NEVER trust the session status; fetch fresh from DB
         User dbUser = userRepository.findById(sessionDetails.getUser().getId()).orElse(null);
         if (dbUser == null) return null;
         
@@ -49,13 +48,13 @@ public class AuthController {
         if (role == Role.ROLE_VOLUNTEER) return "redirect:/volunteer/dashboard";
         if (role == Role.ROLE_ORG_MANAGER) return "redirect:/manager/dashboard";
         if (role == Role.ROLE_ADMIN) return "redirect:/admin/dashboard";
-        return "redirect:/";
+        return "redirect:/discover"; // Default safe route
     }
 
     @GetMapping("/")
     public String rootRedirect(Authentication auth) {
         String redirect = getRedirectForAuthenticatedUser(auth);
-        return redirect != null ? redirect : "redirect:/login";
+        return redirect != null ? redirect : "redirect:/discover";
     }
 
     @GetMapping("/login")
@@ -112,7 +111,6 @@ public class AuthController {
 
     @GetMapping("/otp")
     public String showOtpForm(Model model, Authentication authentication) {
-        // Re-check status so an ACTIVE user opening /otp directly is bounced
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         User dbUser = userRepository.findById(userDetails.getUser().getId()).orElseThrow();
         if (dbUser.getStatus() != UserStatus.PENDING_VERIFICATION) {
@@ -157,7 +155,6 @@ public class AuthController {
         try {
             boolean isValid = authService.verifyOtp(userId, code);
             if (isValid) {
-                // Kill session immediately so the next request gets fresh state
                 new SecurityContextLogoutHandler().logout(request, response, authentication);
                 return "redirect:/login?verified=true";
             } else {

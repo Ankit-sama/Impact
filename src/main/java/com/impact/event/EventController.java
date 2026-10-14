@@ -5,6 +5,7 @@ import com.impact.event.dto.EventFormDto;
 import com.impact.organization.OrganizationService;
 import com.impact.user.User;
 import jakarta.validation.Valid;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -29,36 +30,47 @@ public class EventController {
     public String discoverEvents(@RequestParam(required = false) String keyword,
                                  @RequestParam(required = false) EventCategory category,
                                  @RequestParam(required = false) String city,
-                                 @RequestParam(required = false) String dateRange,
+                                 @RequestParam(required = false) String startFrom,
+                                 @RequestParam(required = false) String startTo,
                                  Model model) {
-        List<Event> events = eventService.searchDiscoverEvents(keyword, category, city, dateRange);
+        List<Event> events = eventService.searchDiscoverEvents(keyword, category, city, startFrom, startTo);
         model.addAttribute("events", events);
         model.addAttribute("categories", EventCategory.values());
         
-        // Keep search params to repopulate the form
         model.addAttribute("keyword", keyword);
         model.addAttribute("category", category);
         model.addAttribute("city", city);
-        model.addAttribute("dateRange", dateRange);
+        model.addAttribute("startFrom", startFrom);
+        model.addAttribute("startTo", startTo);
         
         return "event/discover";
     }
 
     @GetMapping("/events/{id}")
-    public String viewEventDetails(@PathVariable Long id, Model model) {
-        Event event = eventService.getEventById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
-        
-        User creator = eventService.getEventCreator(event.getCreatorId());
-        model.addAttribute("event", event);
-        model.addAttribute("creator", creator);
-        
-        if (event.getOrganizationId() != null) {
-            organizationService.getOrganizationById(event.getOrganizationId())
-                    .ifPresent(org -> model.addAttribute("organization", org));
+    public String viewEventDetails(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
+        Long userId = null;
+        if (authentication != null && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
+            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+            userId = userDetails.getUser().getId();
         }
-        
-        return "event/details";
+
+        try {
+            Event event = eventService.getPublicEventDetails(id, userId);
+            User creator = eventService.getEventCreator(event.getCreatorId());
+            
+            model.addAttribute("event", event);
+            model.addAttribute("creator", creator);
+            
+            if (event.getOrganizationId() != null) {
+                organizationService.getOrganizationById(event.getOrganizationId())
+                        .ifPresent(org -> model.addAttribute("organization", org));
+            }
+            
+            return "event/details";
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+            return "redirect:/discover";
+        }
     }
 
     @GetMapping("/my-events")

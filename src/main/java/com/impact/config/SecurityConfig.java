@@ -28,8 +28,8 @@ public class SecurityConfig {
                 .requestMatchers("/volunteer/**").hasAuthority("ROLE_VOLUNTEER")
                 .requestMatchers("/manager/**").hasAuthority("ROLE_ORG_MANAGER")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
-                // Allowed Public Access Endpoints
-                .requestMatchers("/organization/**", "/discover", "/events/**").permitAll()
+                // Added "/" to this list so the AuthController can process the root redirect to /discover
+                .requestMatchers("/", "/organization/**", "/discover", "/events/**").permitAll()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
