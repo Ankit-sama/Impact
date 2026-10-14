@@ -5,6 +5,10 @@ import com.impact.auth.OtpRecordRepository;
 import com.impact.common.Attachment;
 import com.impact.common.AttachmentRepository;
 import com.impact.config.AppClock;
+import com.impact.event.Event;
+import com.impact.event.EventCategory;
+import com.impact.event.EventRepository;
+import com.impact.event.EventStatus;
 import com.impact.notification.Notification;
 import com.impact.notification.NotificationRepository;
 import com.impact.organization.OrgStatus;
@@ -21,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -33,6 +38,7 @@ public class DemoDataSeeder {
 
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
+    private final EventRepository eventRepository;
     private final OtpRecordRepository otpRecordRepository;
     private final NotificationRepository notificationRepository;
     private final ActivityLogRepository activityLogRepository;
@@ -41,11 +47,13 @@ public class DemoDataSeeder {
     private final AppClock appClock;
 
     public DemoDataSeeder(UserRepository userRepository, OrganizationRepository organizationRepository,
-                          OtpRecordRepository otpRecordRepository, NotificationRepository notificationRepository,
-                          ActivityLogRepository activityLogRepository, AttachmentRepository attachmentRepository, 
-                          PasswordEncoder passwordEncoder, AppClock appClock) {
+                          EventRepository eventRepository, OtpRecordRepository otpRecordRepository, 
+                          NotificationRepository notificationRepository, ActivityLogRepository activityLogRepository, 
+                          AttachmentRepository attachmentRepository, PasswordEncoder passwordEncoder, 
+                          AppClock appClock) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
+        this.eventRepository = eventRepository;
         this.otpRecordRepository = otpRecordRepository;
         this.notificationRepository = notificationRepository;
         this.activityLogRepository = activityLogRepository;
@@ -57,6 +65,10 @@ public class DemoDataSeeder {
     @Transactional
     public void resetAndSeed() {
         try {
+            // DEMO DATA DEFINITION (Stage 3 Updated): 
+            // Any User whose email ends in @demo.com, and any entity owned by them (Events, Organizations, Notifications, 
+            // OTP Records, Attachments, Activity Logs).
+            
             List<User> demoUsers = userRepository.findByEmailEndingWithIgnoreCase("@demo.com");
             logger.info("Found {} demo users", demoUsers.size());
             
@@ -67,9 +79,12 @@ public class DemoDataSeeder {
                         .filter(org -> demoUserIds.contains(org.getManagerId()))
                         .collect(Collectors.toList());
                 
-                logger.info("Found {} demo organizations", demoOrgs.size());
-                
                 List<Long> demoOrgIds = demoOrgs.stream().map(Organization::getId).collect(Collectors.toList());
+
+                // Find Demo Events before deleting
+                List<Event> demoEvents = eventRepository.findAll().stream()
+                        .filter(e -> demoUserIds.contains(e.getCreatorId()))
+                        .collect(Collectors.toList());
 
                 List<ActivityLog> logsToDelete = activityLogRepository.findAll().stream()
                         .filter(log -> demoUserIds.contains(log.getActorId()) || 
@@ -88,6 +103,7 @@ public class DemoDataSeeder {
                 notificationRepository.deleteAllInBatch(notesToDelete);
                 activityLogRepository.deleteAllInBatch(logsToDelete);
                 otpRecordRepository.deleteAllInBatch(otpsToDelete);
+                eventRepository.deleteAllInBatch(demoEvents); // Delete Events
                 organizationRepository.deleteAllInBatch(demoOrgs);
 
                 List<Attachment> attachmentsToDelete = demoUsers.stream()
@@ -104,9 +120,11 @@ public class DemoDataSeeder {
 
                 userRepository.flush();
                 organizationRepository.flush();
+                eventRepository.flush();
             }
 
             String passHash = passwordEncoder.encode("Password1");
+            User orgManager1 = null;
 
             if (!userRepository.existsByEmailIgnoreCase("admin@demo.com")) {
                 User admin = createUser("Admin User", "admin@demo.com", passHash, Role.ROLE_ADMIN, "9999999999");
@@ -124,14 +142,14 @@ public class DemoDataSeeder {
             }
 
             if (!userRepository.existsByEmailIgnoreCase("org1@demo.com")) {
-                User orgManager1 = createUser("Manager One", "org1@demo.com", passHash, Role.ROLE_ORG_MANAGER, "9999999993");
+                orgManager1 = createUser("Manager One", "org1@demo.com", passHash, Role.ROLE_ORG_MANAGER, "9999999993");
                 userRepository.save(orgManager1);
                 
                 Organization org1 = new Organization();
                 org1.setManagerId(orgManager1.getId());
                 org1.setName("Green Earth Foundation");
                 org1.setCauses("Environment, Tree Plantation");
-                org1.setCity("Mumbai");
+                org1.setCity("Pune"); // Set to Pune to match event requirements
                 org1.setDescription("Planting trees since 2010.");
                 org1.setContactEmail("contact@greenearth.demo.com");
                 org1.setRegistrationNumber("REG-12345");
@@ -149,7 +167,7 @@ public class DemoDataSeeder {
                 org2.setManagerId(orgManager2.getId());
                 org2.setName("Urban Helpers");
                 org2.setCauses("Cleanliness, Education");
-                org2.setCity("Pune");
+                org2.setCity("Mumbai");
                 org2.setDescription("Helping urban poor.");
                 org2.setContactEmail("hello@urbanhelpers.demo.com");
                 org2.setRegistrationNumber("REG-98765");
@@ -157,6 +175,54 @@ public class DemoDataSeeder {
                 org2.setCorrectionRounds(0);
                 org2.setSubmittedAt(appClock.now()); 
                 organizationRepository.save(org2);
+            }
+
+            // Seed Events if Org1 was created/exists
+            if (orgManager1 == null) {
+                orgManager1 = userRepository.findByEmail("org1@demo.com").orElse(null);
+            }
+
+            if (orgManager1 != null) {
+                Organization org1 = organizationRepository.findByManagerId(orgManager1.getId()).orElse(null);
+                
+                // Event 1: Park Cleanup Drive
+                if (org1 != null && eventRepository.findByCreatorIdOrderByCreatedAtDesc(orgManager1.getId()).isEmpty()) {
+                    Event e1 = new Event();
+                    e1.setCreatorId(orgManager1.getId());
+                    e1.setOrganizationId(org1.getId());
+                    e1.setTitle("Park Cleanup Drive");
+                    e1.setCategory(EventCategory.CLEANLINESS_DRIVE);
+                    e1.setPurpose("Clean up the central park area.");
+                    e1.setStartAt(appClock.now().plus(2, ChronoUnit.DAYS));
+                    e1.setEndAt(appClock.now().plus(2, ChronoUnit.DAYS).plus(4, ChronoUnit.HOURS));
+                    e1.setExpectedHours(4);
+                    e1.setState("Maharashtra");
+                    e1.setCity("Pune");
+                    e1.setAddress("Central Park");
+                    e1.setCapacity(10);
+                    e1.setStatus(EventStatus.PUBLISHED);
+                    e1.setPublishedAt(appClock.now());
+                    e1.setCreatedAt(appClock.now());
+                    eventRepository.save(e1);
+
+                    // Event 2: Tree Plantation Day
+                    Event e2 = new Event();
+                    e2.setCreatorId(orgManager1.getId());
+                    e2.setOrganizationId(org1.getId());
+                    e2.setTitle("Tree Plantation Day");
+                    e2.setCategory(EventCategory.ENVIRONMENT);
+                    e2.setPurpose("Plant 100 trees in the suburbs.");
+                    e2.setStartAt(appClock.now().plus(5, ChronoUnit.DAYS));
+                    e2.setEndAt(appClock.now().plus(5, ChronoUnit.DAYS).plus(6, ChronoUnit.HOURS));
+                    e2.setExpectedHours(6);
+                    e2.setState("Maharashtra");
+                    e2.setCity("Pune");
+                    e2.setCapacity(5);
+                    e2.setStatus(EventStatus.PUBLISHED);
+                    e2.setPublishedAt(appClock.now());
+                    e2.setCreatedAt(appClock.now());
+                    eventRepository.save(e2);
+                }
             }
 
         } catch (Exception e) {

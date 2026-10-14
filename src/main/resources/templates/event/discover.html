@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header('Discover Events - impACT')}"></head>
+<body class="bg-light">
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mb-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Discover Events</h2>
+            <p class="text-muted">Find and join volunteering opportunities.</p>
+        </div>
+    </div>
+
+    <!-- Search/Filter Form -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form th:action="@{/discover}" method="get" class="row g-3">
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="keyword" placeholder="Search title or purpose..." th:value="${keyword}">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" name="category">
+                        <option value="">All Categories</option>
+                        <option th:each="cat : ${categories}" th:value="${cat.name()}" th:text="${cat.displayName}" th:selected="${category != null and category.name() == cat.name()}"></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" class="form-control" name="city" placeholder="City..." th:value="${city}">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="dateRange">
+                        <option value="">Any Date</option>
+                        <option value="upcoming7" th:selected="${dateRange == 'upcoming7'}">Next 7 Days</option>
+                        <option value="upcoming30" th:selected="${dateRange == 'upcoming30'}">Next 30 Days</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Event List -->
+    <div class="row">
+        <div th:if="${#lists.isEmpty(events)}" class="col-12">
+            <div class="alert alert-info text-center py-5">
+                <h5>No events found.</h5>
+                <p class="mb-0">Try adjusting your filters or search keywords.</p>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4" th:each="event : ${events}">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="badge bg-primary" th:text="${event.category.displayName}">Category</span>
+                    <span th:if="${event.status.name() == 'PUBLISHED'}" class="badge bg-success">Published</span>
+                    <span th:if="${event.status.name() == 'IN_PROGRESS'}" class="badge bg-info text-dark">In Progress</span>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title text-truncate" th:text="${event.title}">Event Title</h5>
+                    <p class="text-muted small mb-2"><i class="bi bi-geo-alt"></i> <span th:text="${event.city}">City</span></p>
+                    <p class="text-muted small mb-3"><i class="bi bi-calendar"></i> <span th:text="${#temporals.format(event.startAt, 'dd MMM yyyy, HH:mm')}">Date</span></p>
+                    <p class="card-text small text-muted text-truncate" th:text="${event.purpose}">Purpose preview...</p>
+                </div>
+                <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
+                    <small class="text-muted"><span th:text="${event.capacity}">0</span> seats left</small>
+                    <a th:href="@{/events/{id}(id=${event.id})}" class="btn btn-sm btn-outline-primary">View Details</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

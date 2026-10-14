@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header(${event.title} + ' - impACT')}"></head>
+<body class="bg-light">
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mb-5">
+    <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
+    
+    <div class="mb-3">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="history.back()"><i class="bi bi-arrow-left"></i> Back</button>
+    </div>
+
+    <div class="row">
+        <!-- Main Event Info -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="badge bg-primary fs-6" th:text="${event.category.displayName}">Category</span>
+                        <span th:if="${event.status.name() == 'DRAFT'}" class="badge bg-secondary fs-6">DRAFT</span>
+                        <span th:if="${event.status.name() == 'PUBLISHED'}" class="badge bg-success fs-6">PUBLISHED</span>
+                        <span th:if="${event.status.name() == 'IN_PROGRESS'}" class="badge bg-info text-dark fs-6">IN PROGRESS</span>
+                        <span th:if="${event.status.name() == 'CANCELLED'}" class="badge bg-danger fs-6">CANCELLED</span>
+                        <span th:if="${event.status.name() == 'COMPLETED' || event.status.name() == 'AWAITING_PROOF' || event.status.name() == 'VERIFIED'}" class="badge bg-dark fs-6">ENDED</span>
+                    </div>
+                    
+                    <h2 class="fw-bold mb-4" th:text="${event.title}">Event Title</h2>
+                    
+                    <h5 class="border-bottom pb-2">Purpose</h5>
+                    <p style="white-space: pre-wrap;" th:text="${event.purpose}"></p>
+                    
+                    <h5 class="border-bottom pb-2 mt-4">Location</h5>
+                    <p class="mb-1"><strong>City/State:</strong> <span th:text="${event.city} + ', ' + ${event.state}"></span></p>
+                    <p class="mb-0" th:if="${event.address != null && !event.address.isEmpty()}"><strong>Address:</strong> <span th:text="${event.address}"></span></p>
+
+                    <!-- Creator Controls -->
+                    <div th:if="${currentUser != null && currentUser.user.id == event.creatorId}" class="alert alert-light border mt-5">
+                        <h6 class="alert-heading">Organizer Controls</h6>
+                        <div th:if="${event.status.name() == 'DRAFT'}">
+                            <a th:href="@{/events/{id}/edit(id=${event.id})}" class="btn btn-primary btn-sm mt-2">Edit Draft</a>
+                            <form th:action="@{/events/{id}/publish(id=${event.id})}" method="post" class="d-inline ms-2">
+                                <button type="submit" class="btn btn-success btn-sm mt-2">Publish Event</button>
+                            </form>
+                        </div>
+                        <div th:if="${event.status.name() != 'DRAFT'}">
+                            <p class="text-muted small mb-0">Editing after publish will be available in a later stage.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Info -->
+        <div class="col-md-4 mb-4">
+            <!-- Schedule Card -->
+            <div class="card shadow-sm mb-4 border-0">
+                <div class="card-body bg-light rounded">
+                    <h5 class="card-title border-bottom pb-2"><i class="bi bi-clock"></i> Schedule</h5>
+                    <p class="mb-1 mt-3"><strong>Starts:</strong> <br><span th:text="${#temporals.format(event.startAt, 'dd MMM yyyy, HH:mm')}"></span></p>
+                    <p class="mb-1"><strong>Ends:</strong> <br><span th:text="${#temporals.format(event.endAt, 'dd MMM yyyy, HH:mm')}"></span></p>
+                    <p class="mb-0 text-muted small mt-2">Expected Hours: <span th:text="${event.expectedHours}"></span></p>
+                </div>
+            </div>
+
+            <!-- Registration Card -->
+            <div class="card shadow-sm mb-4 border-0">
+                <div class="card-body text-center">
+                    <h3 class="display-5 text-primary mb-0" th:text="${event.capacity}">0</h3>
+                    <p class="text-muted">Seats Left (of <span th:text="${event.capacity}"></span> total)</p>
+                    
+                    <div th:if="${currentUser == null}">
+                        <hr>
+                        <a th:href="@{/login}" class="btn btn-outline-primary w-100">Log in to register</a>
+                    </div>
+                    <div th:if="${currentUser != null && currentUser.user.id != event.creatorId}">
+                        <hr>
+                        <button class="btn btn-secondary w-100" disabled>Registration opens in Part B</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organizer Card -->
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Organized By</h6>
+                    <p class="mb-1 fw-bold" th:text="${creator.name}">Creator Name</p>
+                    
+                    <div th:if="${organization != null}" class="mt-2 p-2 bg-light rounded border">
+                        <span class="badge bg-success float-end" th:if="${organization.status.name() == 'VERIFIED'}">Verified</span>
+                        <p class="mb-1 fw-bold" th:text="${organization.name}"></p>
+                        <a th:href="@{/organization/{id}(id=${organization.id})}" class="small text-decoration-none">View Organization</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>
