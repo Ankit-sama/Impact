@@ -5,10 +5,7 @@ import com.impact.auth.OtpRecordRepository;
 import com.impact.common.Attachment;
 import com.impact.common.AttachmentRepository;
 import com.impact.config.AppClock;
-import com.impact.event.Event;
-import com.impact.event.EventCategory;
-import com.impact.event.EventRepository;
-import com.impact.event.EventStatus;
+import com.impact.event.*;
 import com.impact.notification.Notification;
 import com.impact.notification.NotificationRepository;
 import com.impact.organization.OrgStatus;
@@ -39,6 +36,7 @@ public class DemoDataSeeder {
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
     private final EventRepository eventRepository;
+    private final RegistrationRepository registrationRepository;
     private final OtpRecordRepository otpRecordRepository;
     private final NotificationRepository notificationRepository;
     private final ActivityLogRepository activityLogRepository;
@@ -47,13 +45,14 @@ public class DemoDataSeeder {
     private final AppClock appClock;
 
     public DemoDataSeeder(UserRepository userRepository, OrganizationRepository organizationRepository,
-                          EventRepository eventRepository, OtpRecordRepository otpRecordRepository, 
-                          NotificationRepository notificationRepository, ActivityLogRepository activityLogRepository, 
-                          AttachmentRepository attachmentRepository, PasswordEncoder passwordEncoder, 
-                          AppClock appClock) {
+                          EventRepository eventRepository, RegistrationRepository registrationRepository,
+                          OtpRecordRepository otpRecordRepository, NotificationRepository notificationRepository, 
+                          ActivityLogRepository activityLogRepository, AttachmentRepository attachmentRepository, 
+                          PasswordEncoder passwordEncoder, AppClock appClock) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.eventRepository = eventRepository;
+        this.registrationRepository = registrationRepository;
         this.otpRecordRepository = otpRecordRepository;
         this.notificationRepository = notificationRepository;
         this.activityLogRepository = activityLogRepository;
@@ -65,9 +64,9 @@ public class DemoDataSeeder {
     @Transactional
     public void resetAndSeed() {
         try {
-            // DEMO DATA DEFINITION (Stage 3 Updated): 
-            // Any User whose email ends in @demo.com, and any entity owned by them (Events, Organizations, Notifications, 
-            // OTP Records, Attachments, Activity Logs).
+            // DEMO DATA DEFINITION: 
+            // Any User whose email ends in @demo.com, and any entity owned by them 
+            // (Events, Registrations, Organizations, Notifications, OTP Records, Attachments, Activity Logs).
             
             List<User> demoUsers = userRepository.findByEmailEndingWithIgnoreCase("@demo.com");
             logger.info("Found {} demo users", demoUsers.size());
@@ -81,10 +80,10 @@ public class DemoDataSeeder {
                 
                 List<Long> demoOrgIds = demoOrgs.stream().map(Organization::getId).collect(Collectors.toList());
 
-                // Find Demo Events before deleting
                 List<Event> demoEvents = eventRepository.findAll().stream()
                         .filter(e -> demoUserIds.contains(e.getCreatorId()))
                         .collect(Collectors.toList());
+                List<Long> demoEventIds = demoEvents.stream().map(Event::getId).collect(Collectors.toList());
 
                 List<ActivityLog> logsToDelete = activityLogRepository.findAll().stream()
                         .filter(log -> demoUserIds.contains(log.getActorId()) || 
@@ -100,10 +99,16 @@ public class DemoDataSeeder {
                         .filter(o -> demoUserIds.contains(o.getUserId()))
                         .collect(Collectors.toList());
 
+                // Delete registrations where the user is a demo user OR the event is a demo event
+                List<Registration> regsToDelete = registrationRepository.findAll().stream()
+                        .filter(r -> demoUserIds.contains(r.getUserId()) || demoEventIds.contains(r.getEventId()))
+                        .collect(Collectors.toList());
+
                 notificationRepository.deleteAllInBatch(notesToDelete);
                 activityLogRepository.deleteAllInBatch(logsToDelete);
                 otpRecordRepository.deleteAllInBatch(otpsToDelete);
-                eventRepository.deleteAllInBatch(demoEvents); // Delete Events
+                registrationRepository.deleteAllInBatch(regsToDelete); // Added Registration wipe
+                eventRepository.deleteAllInBatch(demoEvents);
                 organizationRepository.deleteAllInBatch(demoOrgs);
 
                 List<Attachment> attachmentsToDelete = demoUsers.stream()
@@ -121,10 +126,12 @@ public class DemoDataSeeder {
                 userRepository.flush();
                 organizationRepository.flush();
                 eventRepository.flush();
+                registrationRepository.flush();
             }
 
             String passHash = passwordEncoder.encode("Password1");
             User orgManager1 = null;
+            User volunteer2 = null;
 
             if (!userRepository.existsByEmailIgnoreCase("admin@demo.com")) {
                 User admin = createUser("Admin User", "admin@demo.com", passHash, Role.ROLE_ADMIN, "9999999999");
@@ -137,8 +144,8 @@ public class DemoDataSeeder {
             }
 
             if (!userRepository.existsByEmailIgnoreCase("vol2@demo.com")) {
-                User vol2 = createUser("Bob Volunteer", "vol2@demo.com", passHash, Role.ROLE_VOLUNTEER, "9999999992");
-                userRepository.save(vol2);
+                volunteer2 = createUser("Bob Volunteer", "vol2@demo.com", passHash, Role.ROLE_VOLUNTEER, "9999999992");
+                userRepository.save(volunteer2);
             }
 
             if (!userRepository.existsByEmailIgnoreCase("org1@demo.com")) {
@@ -149,7 +156,7 @@ public class DemoDataSeeder {
                 org1.setManagerId(orgManager1.getId());
                 org1.setName("Green Earth Foundation");
                 org1.setCauses("Environment, Tree Plantation");
-                org1.setCity("Pune"); // Set to Pune to match event requirements
+                org1.setCity("Pune");
                 org1.setDescription("Planting trees since 2010.");
                 org1.setContactEmail("contact@greenearth.demo.com");
                 org1.setRegistrationNumber("REG-12345");
@@ -177,15 +184,13 @@ public class DemoDataSeeder {
                 organizationRepository.save(org2);
             }
 
-            // Seed Events if Org1 was created/exists
-            if (orgManager1 == null) {
-                orgManager1 = userRepository.findByEmail("org1@demo.com").orElse(null);
-            }
+            // Seed Events
+            if (orgManager1 == null) orgManager1 = userRepository.findByEmail("org1@demo.com").orElse(null);
+            if (volunteer2 == null) volunteer2 = userRepository.findByEmail("vol2@demo.com").orElse(null);
 
             if (orgManager1 != null) {
                 Organization org1 = organizationRepository.findByManagerId(orgManager1.getId()).orElse(null);
                 
-                // Event 1: Park Cleanup Drive
                 if (org1 != null && eventRepository.findByCreatorIdOrderByCreatedAtDesc(orgManager1.getId()).isEmpty()) {
                     Event e1 = new Event();
                     e1.setCreatorId(orgManager1.getId());
@@ -205,7 +210,6 @@ public class DemoDataSeeder {
                     e1.setCreatedAt(appClock.now());
                     eventRepository.save(e1);
 
-                    // Event 2: Tree Plantation Day
                     Event e2 = new Event();
                     e2.setCreatorId(orgManager1.getId());
                     e2.setOrganizationId(org1.getId());
@@ -222,6 +226,16 @@ public class DemoDataSeeder {
                     e2.setPublishedAt(appClock.now());
                     e2.setCreatedAt(appClock.now());
                     eventRepository.save(e2);
+                    
+                    // Seed Registration for vol2
+                    if (volunteer2 != null) {
+                        Registration reg = new Registration();
+                        reg.setEventId(e1.getId());
+                        reg.setUserId(volunteer2.getId());
+                        reg.setStatus(RegistrationStatus.CONFIRMED);
+                        reg.setRegisteredAt(appClock.now());
+                        registrationRepository.save(reg);
+                    }
                 }
             }
 

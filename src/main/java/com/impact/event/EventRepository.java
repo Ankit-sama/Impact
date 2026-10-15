@@ -1,20 +1,22 @@
 package com.impact.event;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
     List<Event> findByCreatorIdOrderByCreatedAtDesc(Long creatorId);
 
-    // Similarity Check: Same category, matching city (case-insensitive & trimmed), starts within window, different creator
     @Query("SELECT e FROM Event e WHERE e.status = 'PUBLISHED' " +
            "AND e.creatorId != :creatorId " +
            "AND e.category = :category " +
@@ -27,4 +29,9 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
             @Param("windowStart") Instant windowStart,
             @Param("windowEnd") Instant windowEnd
     );
+
+    // NEW: Pessimistic write lock for capacity checks
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Event e WHERE e.id = :id")
+    Optional<Event> findByIdForUpdate(@Param("id") Long id);
 }

@@ -1,6 +1,7 @@
 package com.impact.event;
 
 import com.impact.auth.CustomUserDetails;
+import com.impact.config.AppClock;
 import com.impact.event.dto.EventFormDto;
 import com.impact.organization.OrganizationService;
 import com.impact.user.User;
@@ -14,16 +15,22 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class EventController {
 
     private final EventService eventService;
     private final OrganizationService organizationService;
+    private final RegistrationService registrationService;
+    private final AppClock appClock;
 
-    public EventController(EventService eventService, OrganizationService organizationService) {
+    public EventController(EventService eventService, OrganizationService organizationService, 
+                           RegistrationService registrationService, AppClock appClock) {
         this.eventService = eventService;
         this.organizationService = organizationService;
+        this.registrationService = registrationService;
+        this.appClock = appClock;
     }
 
     @GetMapping("/discover")
@@ -34,7 +41,12 @@ public class EventController {
                                  @RequestParam(required = false) String startTo,
                                  Model model) {
         List<Event> events = eventService.searchDiscoverEvents(keyword, category, city, startFrom, startTo);
+        
+        // Fetch efficient map of seats left for all events
+        Map<Long, Integer> seatsLeftMap = registrationService.getSeatsLeftMap(events);
+        
         model.addAttribute("events", events);
+        model.addAttribute("seatsLeftMap", seatsLeftMap);
         model.addAttribute("categories", EventCategory.values());
         
         model.addAttribute("keyword", keyword);
@@ -49,17 +61,23 @@ public class EventController {
     @GetMapping("/events/{id}")
     public String viewEventDetails(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
         Long userId = null;
+        boolean isConfirmed = false;
         if (authentication != null && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             userId = userDetails.getUser().getId();
+            isConfirmed = registrationService.isUserConfirmed(id, userId);
         }
 
         try {
             Event event = eventService.getPublicEventDetails(id, userId);
             User creator = eventService.getEventCreator(event.getCreatorId());
+            int seatsLeft = registrationService.getSeatsLeft(id, event.getCapacity());
             
             model.addAttribute("event", event);
             model.addAttribute("creator", creator);
+            model.addAttribute("seatsLeft", seatsLeft);
+            model.addAttribute("isConfirmed", isConfirmed);
+            model.addAttribute("now", appClock.now());
             
             if (event.getOrganizationId() != null) {
                 organizationService.getOrganizationById(event.getOrganizationId())

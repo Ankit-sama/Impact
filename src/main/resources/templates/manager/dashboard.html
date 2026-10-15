@@ -55,7 +55,11 @@
                            
                         <form th:if="${organization.status.name() == 'DRAFT' || organization.status.name() == 'RETURNED_FOR_CORRECTION'}"
                               th:action="@{/manager/organization/submit}" method="post">
-                            <button type="submit" class="btn btn-success" onclick="return confirm('Submit for verification? Make sure all fields are complete.')">Submit for Verification</button>
+                            <button type="button" class="btn btn-success btn-confirm" 
+                                    data-confirm-title="Submit your organization for verification?" 
+                                    data-confirm-message="You will not be able to edit it while it is under review." 
+                                    data-confirm-button="Submit" 
+                                    data-confirm-style="success">Submit for Verification</button>
                         </form>
                     </div>
                 </div>

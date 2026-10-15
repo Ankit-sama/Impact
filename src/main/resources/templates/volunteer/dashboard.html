@@ -9,16 +9,40 @@
     <div class="row mb-4">
         <div class="col">
             <h2>Welcome, <span th:text="${currentUser.user.name}"></span>!</h2>
-            <p class="text-muted">Role: Volunteer | Location: <span th:text="${currentUser.user.city}"></span></p>
+            <p class="text-muted">Role: Volunteer | Location: <span th:text="${currentUser.user.city ?: 'Not provided'}"></span></p>
         </div>
     </div>
     
     <div class="row">
-        <div class="col-md-12">
-            <div class="card shadow-sm">
-                <div class="card-body text-center py-5">
-                    <h5 class="text-muted">Volunteer Dashboard Placeholder</h5>
-                    <p>Upcoming registrations, hours, and certificates will appear here.</p>
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Upcoming Registrations</h5>
+                    <a th:href="@{/my-registrations}" class="btn btn-sm btn-outline-primary">View all</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a th:each="dto : ${upcomingRegistrations}" th:href="@{/events/{id}(id=${dto.event.id})}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1 fw-bold" th:text="${dto.event.title}">Event Title</h6>
+                                <small th:text="${#temporals.format(dto.event.startAt, 'dd MMM yyyy, HH:mm')}">Date</small>
+                            </div>
+                            <p class="mb-1 text-muted small"><i class="bi bi-geo-alt"></i> <span th:text="${dto.event.city}">City</span></p>
+                        </a>
+                        <div th:if="${#lists.isEmpty(upcomingRegistrations)}" class="p-4 text-center text-muted">
+                            You have no upcoming events. <a th:href="@{/discover}">Discover events</a> to join.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 bg-primary text-white">
+                <div class="card-body text-center d-flex flex-column justify-content-center">
+                    <h1 class="display-4"><i class="bi bi-clock-history"></i></h1>
+                    <h4>0</h4>
+                    <p class="mb-0">Verified Hours</p>
                 </div>
             </div>
         </div>
