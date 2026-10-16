@@ -31,13 +31,7 @@
                         <td class="align-middle" th:text="${#temporals.format(event.startAt, 'dd MMM yyyy')}"></td>
                         <td class="align-middle" th:text="${event.city}"></td>
                         <td class="align-middle">
-                            <span th:if="${event.status.name() == 'DRAFT'}" class="badge bg-secondary">Draft</span>
-                            <span th:if="${event.status.name() == 'PUBLISHED'}" class="badge bg-success">Published</span>
-                            <span th:if="${event.status.name() == 'IN_PROGRESS'}" class="badge bg-info text-dark">In Progress</span>
-                            <span th:if="${event.status.name() == 'CANCELLED'}" class="badge bg-danger">Cancelled</span>
-                            <span th:if="${event.status.name() == 'AWAITING_PROOF'}" class="badge bg-warning text-dark">Awaiting Proof</span>
-                            <span th:if="${event.status.name() == 'COMPLETED'}" class="badge bg-primary">Completed</span>
-                            <span th:if="${event.status.name() == 'VERIFIED'}" class="badge bg-success">Verified</span>
+                            <div th:replace="~{fragments/layout :: eventStatus(event=${event})}"></div>
                         </td>
                         <td class="text-end align-middle">
                             <a th:href="@{/events/{id}(id=${event.id})}" class="btn btn-sm btn-outline-secondary">Details</a>

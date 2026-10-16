@@ -1,14 +1,18 @@
 package com.impact.event;
 
+import com.impact.admin.ActivityLogService;
 import com.impact.config.AppClock;
 import com.impact.config.ImpactProperties;
 import com.impact.event.dto.EventFormDto;
+import com.impact.notification.NotificationService;
 import com.impact.organization.OrgStatus;
 import com.impact.organization.Organization;
 import com.impact.organization.OrganizationRepository;
+import com.impact.scheduler.LifecycleService;
 import com.impact.user.Role;
 import com.impact.user.User;
 import com.impact.user.UserRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -19,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -31,16 +36,26 @@ public class EventService {
     private final UserRepository userRepository;
     private final AppClock appClock;
     private final ImpactProperties properties;
+    private final ActivityLogService activityLogService;
+    private final NotificationService notificationService;
+    private final RegistrationRepository registrationRepository;
+    private final LifecycleService lifecycleService;
 
     private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
 
     public EventService(EventRepository eventRepository, OrganizationRepository organizationRepository,
-                        UserRepository userRepository, AppClock appClock, ImpactProperties properties) {
+                        UserRepository userRepository, AppClock appClock, ImpactProperties properties,
+                        ActivityLogService activityLogService, NotificationService notificationService,
+                        RegistrationRepository registrationRepository, @Lazy LifecycleService lifecycleService) {
         this.eventRepository = eventRepository;
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
         this.appClock = appClock;
         this.properties = properties;
+        this.activityLogService = activityLogService;
+        this.notificationService = notificationService;
+        this.registrationRepository = registrationRepository;
+        this.lifecycleService = lifecycleService;
     }
 
     public List<Event> getMyEvents(Long creatorId) {
@@ -64,7 +79,6 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));
         
-        // Block unauthorized access to Drafts
         if (event.getStatus() == EventStatus.DRAFT) {
             if (requestingUserId == null || !event.getCreatorId().equals(requestingUserId)) {
                 throw new IllegalStateException("This event has not been published yet.");
@@ -84,9 +98,7 @@ public class EventService {
             if (startTo != null && !startTo.isBlank()) {
                 toInstant = LocalDate.parse(startTo).atTime(LocalTime.MAX).atZone(IST_ZONE).toInstant();
             }
-        } catch (Exception e) {
-            // Ignore parse errors, filters gracefully fallback to null
-        }
+        } catch (Exception e) { }
 
         List<EventStatus> visibleStatuses = List.of(EventStatus.PUBLISHED, EventStatus.IN_PROGRESS);
 
@@ -122,7 +134,10 @@ public class EventService {
 
     @Transactional
     public void updateDraft(Long eventId, Long creatorId, EventFormDto dto) {
-        Event event = getEventForCreator(eventId, creatorId);
+        Event event = lifecycleService.lockAndTick(eventId);
+        if (!event.getCreatorId().equals(creatorId)) {
+            throw new IllegalStateException("You are not authorized to access this event.");
+        }
         
         if (event.getStatus() != EventStatus.DRAFT) {
             throw new IllegalStateException("Only Draft events can be edited completely.");
@@ -135,7 +150,10 @@ public class EventService {
 
     @Transactional
     public void publishEvent(Long eventId, Long creatorId) {
-        Event event = getEventForCreator(eventId, creatorId);
+        Event event = lifecycleService.lockAndTick(eventId);
+        if (!event.getCreatorId().equals(creatorId)) {
+            throw new IllegalStateException("You are not authorized to access this event.");
+        }
         
         if (event.getStatus() != EventStatus.DRAFT) {
             throw new IllegalStateException("Only Draft events can be published.");
@@ -157,6 +175,37 @@ public class EventService {
         event.setStatus(EventStatus.PUBLISHED);
         event.setPublishedAt(appClock.now());
         eventRepository.save(event);
+    }
+
+    @Transactional
+    public void cancelEvent(Event event, CancelledBy cancelledBy, String reason) {
+        if (event.getStatus() == EventStatus.CANCELLED) return;
+
+        event.setStatus(EventStatus.CANCELLED);
+        event.setCancelledBy(cancelledBy);
+        event.setCancelReason(reason);
+        event.setNeedsVolunteers(false);
+        eventRepository.save(event);
+
+        if (cancelledBy != CancelledBy.CREATOR) {
+            notificationService.createNotification(event.getCreatorId(),
+                    "Your event '" + event.getTitle() + "' was cancelled by " + cancelledBy.name() + ". Reason: " + reason,
+                    "/events/" + event.getId());
+        }
+
+        List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(event.getId(), List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
+        for (Registration reg : activeRegs) {
+            notificationService.createNotification(reg.getUserId(),
+                    "The event '" + event.getTitle() + "' has been cancelled. Reason: " + reason,
+                    "/events/" + event.getId());
+        }
+
+        activityLogService.logAction(
+                event.getCreatorId(),
+                "EVENT_CANCELLED", "EVENT", event.getId(), "Cancelled by " + cancelledBy.name() + ". Reason: " + reason
+        );
+
+        // TODO (Stage 6): Refund simulated contributions here
     }
 
     public List<Event> findSimilarEvents(Long eventId, Long creatorId) {
@@ -187,14 +236,13 @@ public class EventService {
         return userRepository.findById(creatorId).orElse(null);
     }
 
-    // --- RESTORED HELPER METHODS BELOW ---
-
     private void validateEventTiming(EventFormDto dto) {
         Instant start = dto.getStartAtLocal().atZone(IST_ZONE).toInstant();
         Instant end = dto.getEndAtLocal().atZone(IST_ZONE).toInstant();
 
         if (!start.isAfter(appClock.now())) {
-            throw new IllegalArgumentException("Start time must be in the future.");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a").withZone(IST_ZONE);
+            throw new IllegalArgumentException("Start time must be after the current time " + formatter.format(appClock.now()) + ".");
         }
         if (!end.isAfter(start)) {
             throw new IllegalArgumentException("End time must be after start time.");

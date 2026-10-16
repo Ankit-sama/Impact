@@ -4,6 +4,7 @@ import com.impact.auth.CustomUserDetails;
 import com.impact.config.AppClock;
 import com.impact.event.dto.EventFormDto;
 import com.impact.organization.OrganizationService;
+import com.impact.scheduler.LifecycleService;
 import com.impact.user.User;
 import jakarta.validation.Valid;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -23,13 +24,15 @@ public class EventController {
     private final EventService eventService;
     private final OrganizationService organizationService;
     private final RegistrationService registrationService;
+    private final LifecycleService lifecycleService;
     private final AppClock appClock;
 
     public EventController(EventService eventService, OrganizationService organizationService, 
-                           RegistrationService registrationService, AppClock appClock) {
+                           RegistrationService registrationService, LifecycleService lifecycleService, AppClock appClock) {
         this.eventService = eventService;
         this.organizationService = organizationService;
         this.registrationService = registrationService;
+        this.lifecycleService = lifecycleService;
         this.appClock = appClock;
     }
 
@@ -42,7 +45,6 @@ public class EventController {
                                  Model model) {
         List<Event> events = eventService.searchDiscoverEvents(keyword, category, city, startFrom, startTo);
         
-        // Fetch efficient map of seats left for all events
         Map<Long, Integer> seatsLeftMap = registrationService.getSeatsLeftMap(events);
         
         model.addAttribute("events", events);
@@ -69,6 +71,9 @@ public class EventController {
         }
 
         try {
+            // Force a mini-tick on this specific event to guarantee status is perfectly up-to-date
+            lifecycleService.lockAndTick(id);
+
             Event event = eventService.getPublicEventDetails(id, userId);
             User creator = eventService.getEventCreator(event.getCreatorId());
             int seatsLeft = registrationService.getSeatsLeft(id, event.getCapacity());

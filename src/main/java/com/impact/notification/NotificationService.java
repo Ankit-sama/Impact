@@ -57,4 +57,9 @@ public class NotificationService {
                     return n.getLink() != null ? n.getLink() : "/";
                 }).orElse("/");
     }
+
+    @Transactional
+    public void markAllAsRead(Long userId) {
+        notificationRepository.markAllAsReadByUserId(userId);
+    }
 }

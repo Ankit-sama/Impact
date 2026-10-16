@@ -11,6 +11,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequestMapping("/demo")
@@ -32,7 +33,6 @@ public class DemoController {
     @PostMapping("/reset")
     public String resetAndSeed(HttpServletRequest request) {
         try {
-            // Invalidate the session FIRST so Thymeleaf doesn't query a deleted user on redirect
             request.getSession().invalidate();
             SecurityContextHolder.clearContext();
             
@@ -46,20 +46,27 @@ public class DemoController {
     }
 
     @PostMapping("/tick")
-    public String runTick() {
-        lifecycleService.tick();
-        return "redirect:/"; 
+    public String runTick(HttpServletRequest request, RedirectAttributes ra) {
+        int updatedCount = lifecycleService.tick();
+        ra.addFlashAttribute("successMsg", "Tick ran: " + updatedCount + " events updated.");
+        String referer = request.getHeader("Referer");
+        return "redirect:" + (referer != null ? referer : "/");
     }
 
     @PostMapping("/skip")
-    public String skipTime(@RequestParam long minutes) {
+    public String skipTime(@RequestParam long minutes, HttpServletRequest request, RedirectAttributes ra) {
         appClock.addMinutes(minutes);
-        return "redirect:/"; 
+        int updatedCount = lifecycleService.tick();
+        ra.addFlashAttribute("successMsg", "Skipped " + minutes + " min. Tick ran: " + updatedCount + " events updated.");
+        String referer = request.getHeader("Referer");
+        return "redirect:" + (referer != null ? referer : "/");
     }
 
     @PostMapping("/reset-clock")
-    public String resetClock() {
+    public String resetClock(HttpServletRequest request, RedirectAttributes ra) {
         appClock.reset();
-        return "redirect:/";
+        ra.addFlashAttribute("successMsg", "Clock offset reset to zero.");
+        String referer = request.getHeader("Referer");
+        return "redirect:" + (referer != null ? referer : "/");
     }
 }

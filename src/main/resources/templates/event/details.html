@@ -13,20 +13,24 @@
     </div>
 
     <div class="row">
-        <!-- Main Event Info -->
         <div class="col-md-8 mb-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-start mb-3">
-                        <span class="badge bg-primary fs-6" th:text="${event.category.displayName}">Category</span>
-                        <span th:if="${event.status.name() == 'DRAFT'}" class="badge bg-secondary fs-6">DRAFT</span>
-                        <span th:if="${event.status.name() == 'PUBLISHED'}" class="badge bg-success fs-6">PUBLISHED</span>
-                        <span th:if="${event.status.name() == 'IN_PROGRESS'}" class="badge bg-info text-dark fs-6">IN PROGRESS</span>
-                        <span th:if="${event.status.name() == 'CANCELLED'}" class="badge bg-danger fs-6">CANCELLED</span>
-                        <span th:if="${event.status.name() == 'COMPLETED' || event.status.name() == 'AWAITING_PROOF' || event.status.name() == 'VERIFIED'}" class="badge bg-dark fs-6">ENDED</span>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-primary fs-6" th:text="${event.category.displayName}">Category</span>
+                            <div th:replace="~{fragments/layout :: eventStatus(event=${event})}"></div>
+                        </div>
                     </div>
                     
                     <h2 class="fw-bold mb-4" th:text="${event.title}">Event Title</h2>
+
+                    <!-- Cancellation Alert -->
+                    <div th:if="${event.status.name() == 'CANCELLED'}" class="alert alert-danger mb-4">
+                        <h5 class="alert-heading"><i class="bi bi-x-circle-fill"></i> Event Cancelled</h5>
+                        <p class="mb-0"><strong>Cancelled by:</strong> <span th:text="${event.cancelledBy.name()}"></span></p>
+                        <p class="mb-0"><strong>Reason:</strong> <span th:text="${event.cancelReason}"></span></p>
+                    </div>
                     
                     <h5 class="border-bottom pb-2">Purpose</h5>
                     <p style="white-space: pre-wrap;" th:text="${event.purpose ?: 'Not provided'}"></p>
@@ -35,7 +39,6 @@
                     <p class="mb-1"><strong>City/State:</strong> <span th:text="${event.city} + ', ' + ${event.state}"></span></p>
                     <p class="mb-0"><strong>Address:</strong> <span th:text="${event.address != null and !event.address.isBlank() ? event.address : 'Not provided'}"></span></p>
 
-                    <!-- Creator Controls (Only visible to the creator) -->
                     <div th:if="${currentUser != null && currentUser.user.id == event.creatorId}" class="alert alert-light border mt-5">
                         <h6 class="alert-heading">Organizer Controls</h6>
                         <div th:if="${event.status.name() == 'DRAFT'}">
@@ -52,9 +55,7 @@
             </div>
         </div>
 
-        <!-- Sidebar Info -->
         <div class="col-md-4 mb-4">
-            <!-- Schedule Card -->
             <div class="card shadow-sm mb-4 border-0">
                 <div class="card-body bg-light rounded">
                     <h5 class="card-title border-bottom pb-2"><i class="bi bi-clock"></i> Schedule</h5>
@@ -64,40 +65,34 @@
                 </div>
             </div>
 
-            <!-- REGISTRATION ADAPTER CARD -->
             <div class="card shadow-sm mb-4 border-0">
                 <div class="card-body text-center">
                     <h3 class="display-5 mb-0" th:classappend="${seatsLeft <= 0 ? 'text-danger' : 'text-primary'}" th:text="${seatsLeft}">0</h3>
                     <p class="text-muted mb-0">Seats Left (of <span th:text="${event.capacity}"></span> total)</p>
                     <hr>
                     
-                    <!-- Not Logged In -->
                     <div th:if="${currentUser == null}">
-                        <a th:href="@{/login}" class="btn btn-outline-primary w-100">Log in to register</a>
+                        <div th:if="${event.status.name() != 'PUBLISHED'}">
+                            <button class="btn btn-secondary w-100" disabled>Registration is closed</button>
+                        </div>
+                        <div th:if="${event.status.name() == 'PUBLISHED'}">
+                            <a th:href="@{/login}" class="btn btn-outline-primary w-100">Log in to register</a>
+                        </div>
                     </div>
                     
-                    <!-- Logged In -->
                     <div th:if="${currentUser != null}">
-                        
-                        <!-- Role: Admin -->
                         <div th:if="${currentUser.user.role.name() == 'ROLE_ADMIN'}">
                             <button class="btn btn-secondary w-100 mb-2" disabled>Admins cannot register</button>
                             <a th:href="@{/events/{id}/participants(id=${event.id})}" class="btn btn-outline-primary w-100">View Participants</a>
                         </div>
                         
-                        <!-- Role: Volunteer or Manager -->
                         <div th:if="${currentUser.user.role.name() != 'ROLE_ADMIN'}">
-                            
-                            <!-- If user is the creator -->
                             <div th:if="${currentUser.user.id == event.creatorId}">
                                 <div class="alert alert-info py-2 text-center mb-2 small border-0">You organize this event</div>
                                 <a th:href="@{/events/{id}/participants(id=${event.id})}" class="btn btn-outline-primary w-100">View Participants</a>
                             </div>
                             
-                            <!-- If user is NOT the creator -->
                             <div th:if="${currentUser.user.id != event.creatorId}">
-                                
-                                <!-- User is already Confirmed -->
                                 <div th:if="${isConfirmed}">
                                     <div class="alert alert-success py-2 text-center mb-2 small border-0"><i class="bi bi-check-circle-fill"></i> You are registered</div>
                                     <form th:if="${event.startAt.isAfter(now) and event.status.name() == 'PUBLISHED'}" 
@@ -110,13 +105,10 @@
                                     </form>
                                 </div>
                                 
-                                <!-- User is NOT confirmed -->
                                 <div th:if="${!isConfirmed}">
-                                    <!-- Event Started or Not Published -->
                                     <div th:if="${!event.startAt.isAfter(now) or event.status.name() != 'PUBLISHED'}">
-                                        <button class="btn btn-secondary w-100" disabled>Registration closed</button>
+                                        <button class="btn btn-secondary w-100" disabled>Registration is closed</button>
                                     </div>
-                                    <!-- Event Open -->
                                     <div th:if="${event.startAt.isAfter(now) and event.status.name() == 'PUBLISHED'}">
                                         <div th:if="${seatsLeft <= 0}">
                                             <button class="btn btn-danger w-100" disabled>This event is full</button>
@@ -134,7 +126,6 @@
                 </div>
             </div>
 
-            <!-- Organizer Card -->
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-2 text-muted">Organized By</h6>

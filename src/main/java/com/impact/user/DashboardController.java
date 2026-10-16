@@ -2,6 +2,7 @@ package com.impact.user;
 
 import com.impact.auth.CustomUserDetails;
 import com.impact.config.AppClock;
+import com.impact.event.EventStatus;
 import com.impact.event.RegistrationService;
 import com.impact.event.RegistrationStatus;
 import com.impact.event.dto.RegistrationDetailsDto;
@@ -36,7 +37,9 @@ public class DashboardController {
         Instant now = appClock.now();
 
         List<RegistrationDetailsDto> upcoming = registrationService.getMyRegistrations(userId).stream()
-                .filter(dto -> dto.getRegistration().getStatus() == RegistrationStatus.CONFIRMED && dto.getEvent().getStartAt().isAfter(now))
+                .filter(dto -> dto.getRegistration().getStatus() == RegistrationStatus.CONFIRMED 
+                        && dto.getEvent().getStartAt().isAfter(now)
+                        && dto.getEvent().getStatus() != EventStatus.CANCELLED)
                 .sorted(Comparator.comparing(dto -> dto.getEvent().getStartAt()))
                 .limit(5)
                 .collect(Collectors.toList());

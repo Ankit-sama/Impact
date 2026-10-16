@@ -17,9 +17,10 @@ public interface RegistrationRepository extends JpaRepository<Registration, Long
     
     List<Registration> findByEventIdAndStatusOrderByRegisteredAtAsc(Long eventId, RegistrationStatus status);
 
+    List<Registration> findByEventIdAndStatusIn(Long eventId, List<RegistrationStatus> statuses);
+
     long countByEventIdAndStatus(Long eventId, RegistrationStatus status);
 
-    // Efficiently counts confirmed registrations for a list of events to avoid N+1 queries
     @Query("SELECT r.eventId, COUNT(r.id) FROM Registration r WHERE r.eventId IN :eventIds AND r.status = 'CONFIRMED' GROUP BY r.eventId")
     List<Object[]> countConfirmedByEventIds(@Param("eventIds") List<Long> eventIds);
 }

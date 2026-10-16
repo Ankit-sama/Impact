@@ -30,8 +30,14 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
             @Param("windowEnd") Instant windowEnd
     );
 
-    // NEW: Pessimistic write lock for capacity checks
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Event e WHERE e.id = :id")
     Optional<Event> findByIdForUpdate(@Param("id") Long id);
+
+    // NEW: Efficiently find events that might require a state transition
+    @Query("SELECT e.id FROM Event e WHERE " +
+           "(e.status = 'DRAFT' AND e.startAt <= :now) OR " +
+           "(e.status = 'PUBLISHED' AND e.startAt <= :readinessTime) OR " +
+           "(e.status = 'IN_PROGRESS' AND e.endAt <= :now)")
+    List<Long> findIdsNeedingTick(@Param("now") Instant now, @Param("readinessTime") Instant readinessTime);
 }

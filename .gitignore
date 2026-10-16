@@ -34,3 +34,7 @@ build/
 
 #ignore uploads
 uploads/
+
+# Local project reference documents
+impACT_Handoff_Stage3B.docx
+impACT_Lite_Java_SRS.md

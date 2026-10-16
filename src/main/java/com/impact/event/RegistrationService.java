@@ -3,9 +3,11 @@ package com.impact.event;
 import com.impact.config.AppClock;
 import com.impact.event.dto.ParticipantDto;
 import com.impact.event.dto.RegistrationDetailsDto;
+import com.impact.scheduler.LifecycleService;
 import com.impact.user.Role;
 import com.impact.user.User;
 import com.impact.user.UserRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,13 +22,15 @@ public class RegistrationService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final AppClock appClock;
+    private final LifecycleService lifecycleService;
 
     public RegistrationService(RegistrationRepository registrationRepository, EventRepository eventRepository,
-                               UserRepository userRepository, AppClock appClock) {
+                               UserRepository userRepository, AppClock appClock, @Lazy LifecycleService lifecycleService) {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
         this.appClock = appClock;
+        this.lifecycleService = lifecycleService;
     }
 
     @Transactional
@@ -35,11 +39,9 @@ public class RegistrationService {
             throw new IllegalStateException("Admins cannot register for events.");
         }
 
-        // 1. Fetch Event with Pessimistic Write Lock
-        Event event = eventRepository.findByIdForUpdate(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+        // Lock and refresh event state precisely at the moment of registration
+        Event event = lifecycleService.lockAndTick(eventId);
 
-        // 2. Validate Rules
         if (event.getCreatorId().equals(userId)) {
             throw new IllegalStateException("You cannot register for your own event.");
         }
@@ -50,7 +52,6 @@ public class RegistrationService {
             throw new IllegalStateException("Registration is closed. The event has already started.");
         }
 
-        // 3. Check Capacity
         long confirmedCount = registrationRepository.countByEventIdAndStatus(eventId, RegistrationStatus.CONFIRMED);
         
         Optional<Registration> existingOpt = registrationRepository.findByEventIdAndUserId(eventId, userId);
@@ -62,7 +63,6 @@ public class RegistrationService {
             if (confirmedCount >= event.getCapacity()) {
                 throw new IllegalStateException("This event is full.");
             }
-            // Reuse withdrawn record
             existing.setStatus(RegistrationStatus.CONFIRMED);
             existing.setRegisteredAt(appClock.now());
             registrationRepository.save(existing);
@@ -73,7 +73,6 @@ public class RegistrationService {
             throw new IllegalStateException("This event is full.");
         }
 
-        // 4. Create new record
         Registration reg = new Registration();
         reg.setEventId(eventId);
         reg.setUserId(userId);
@@ -89,8 +88,7 @@ public class RegistrationService {
 
     @Transactional
     public void withdraw(Long eventId, Long userId) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+        Event event = lifecycleService.lockAndTick(eventId);
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new IllegalStateException("You can only withdraw while the event is Published.");
@@ -122,7 +120,6 @@ public class RegistrationService {
         return (int) Math.max(0, capacity - confirmed);
     }
 
-    // Efficiently maps a list of events to their available seats
     public Map<Long, Integer> getSeatsLeftMap(List<Event> events) {
         if (events.isEmpty()) return Collections.emptyMap();
         
@@ -158,7 +155,6 @@ public class RegistrationService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));
         
-        // Ownership / Authorization Check
         if (role != Role.ROLE_ADMIN && !event.getCreatorId().equals(requestingUserId)) {
             throw new IllegalStateException("You are not authorized to view the participant list for this event.");
         }

@@ -64,10 +64,9 @@ public class DemoDataSeeder {
     @Transactional
     public void resetAndSeed() {
         try {
-            // DEMO DATA DEFINITION: 
-            // Any User whose email ends in @demo.com, and any entity owned by them 
-            // (Events, Registrations, Organizations, Notifications, OTP Records, Attachments, Activity Logs).
-            
+            // FIX: Reset the clock offset to zero FIRST, so all seeded events generate precise real-world start times.
+            appClock.reset();
+
             List<User> demoUsers = userRepository.findByEmailEndingWithIgnoreCase("@demo.com");
             logger.info("Found {} demo users", demoUsers.size());
             
@@ -99,7 +98,6 @@ public class DemoDataSeeder {
                         .filter(o -> demoUserIds.contains(o.getUserId()))
                         .collect(Collectors.toList());
 
-                // Delete registrations where the user is a demo user OR the event is a demo event
                 List<Registration> regsToDelete = registrationRepository.findAll().stream()
                         .filter(r -> demoUserIds.contains(r.getUserId()) || demoEventIds.contains(r.getEventId()))
                         .collect(Collectors.toList());
@@ -107,7 +105,7 @@ public class DemoDataSeeder {
                 notificationRepository.deleteAllInBatch(notesToDelete);
                 activityLogRepository.deleteAllInBatch(logsToDelete);
                 otpRecordRepository.deleteAllInBatch(otpsToDelete);
-                registrationRepository.deleteAllInBatch(regsToDelete); // Added Registration wipe
+                registrationRepository.deleteAllInBatch(regsToDelete);
                 eventRepository.deleteAllInBatch(demoEvents);
                 organizationRepository.deleteAllInBatch(demoOrgs);
 
@@ -184,7 +182,6 @@ public class DemoDataSeeder {
                 organizationRepository.save(org2);
             }
 
-            // Seed Events
             if (orgManager1 == null) orgManager1 = userRepository.findByEmail("org1@demo.com").orElse(null);
             if (volunteer2 == null) volunteer2 = userRepository.findByEmail("vol2@demo.com").orElse(null);
 
@@ -227,14 +224,54 @@ public class DemoDataSeeder {
                     e2.setCreatedAt(appClock.now());
                     eventRepository.save(e2);
                     
-                    // Seed Registration for vol2
+                    Event e3 = new Event();
+                    e3.setCreatorId(orgManager1.getId());
+                    e3.setOrganizationId(org1.getId());
+                    e3.setTitle("Beach Cleanup (low volunteers demo)");
+                    e3.setCategory(EventCategory.AWARENESS_CAMPAIGN);
+                    e3.setPurpose("Spread awareness by cleaning the beach.");
+                    e3.setStartAt(appClock.now().plus(6, ChronoUnit.MINUTES));
+                    e3.setEndAt(appClock.now().plus(6, ChronoUnit.MINUTES).plus(3, ChronoUnit.HOURS));
+                    e3.setExpectedHours(2);
+                    e3.setState("Maharashtra");
+                    e3.setCity("Pune");
+                    e3.setCapacity(5);
+                    e3.setStatus(EventStatus.PUBLISHED);
+                    e3.setPublishedAt(appClock.now());
+                    e3.setCreatedAt(appClock.now());
+                    eventRepository.save(e3);
+
+                    Event e4 = new Event();
+                    e4.setCreatorId(orgManager1.getId());
+                    e4.setOrganizationId(org1.getId());
+                    e4.setTitle("Library Drive (no volunteers demo)");
+                    e4.setCategory(EventCategory.EDUCATIONAL);
+                    e4.setPurpose("Organize library books for the community.");
+                    e4.setStartAt(appClock.now().plus(6, ChronoUnit.MINUTES));
+                    e4.setEndAt(appClock.now().plus(6, ChronoUnit.MINUTES).plus(3, ChronoUnit.HOURS));
+                    e4.setExpectedHours(2);
+                    e4.setState("Maharashtra");
+                    e4.setCity("Pune");
+                    e4.setCapacity(5);
+                    e4.setStatus(EventStatus.PUBLISHED);
+                    e4.setPublishedAt(appClock.now());
+                    e4.setCreatedAt(appClock.now());
+                    eventRepository.save(e4);
+
                     if (volunteer2 != null) {
-                        Registration reg = new Registration();
-                        reg.setEventId(e1.getId());
-                        reg.setUserId(volunteer2.getId());
-                        reg.setStatus(RegistrationStatus.CONFIRMED);
-                        reg.setRegisteredAt(appClock.now());
-                        registrationRepository.save(reg);
+                        Registration reg1 = new Registration();
+                        reg1.setEventId(e1.getId());
+                        reg1.setUserId(volunteer2.getId());
+                        reg1.setStatus(RegistrationStatus.CONFIRMED);
+                        reg1.setRegisteredAt(appClock.now());
+                        registrationRepository.save(reg1);
+                        
+                        Registration reg3 = new Registration();
+                        reg3.setEventId(e3.getId());
+                        reg3.setUserId(volunteer2.getId());
+                        reg3.setStatus(RegistrationStatus.CONFIRMED);
+                        reg3.setRegisteredAt(appClock.now());
+                        registrationRepository.save(reg3);
                     }
                 }
             }

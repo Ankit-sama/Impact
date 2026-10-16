@@ -8,7 +8,6 @@
 </head>
 <body class="bg-light">
 
-<!-- Navbar Fragment -->
 <nav th:fragment="navbar" class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid">
         <a class="navbar-brand fw-bold" th:href="@{/}">impACT</a>
@@ -48,8 +47,9 @@
                 <li class="nav-item me-3">
                     <a class="nav-link position-relative" th:href="@{/notifications}">
                         Notifications
-                        <span th:if="${unreadNotificationCount > 0}" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                            <span th:text="${unreadNotificationCount}"></span>
+                        <span id="unreadBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                              th:text="${unreadNotificationCount}"
+                              th:style="${unreadNotificationCount > 0 ? '' : 'display:none;'}">
                         </span>
                     </a>
                 </li>
@@ -75,7 +75,16 @@
     </div>
 </nav>
 
-<!-- Reusable Confirmation Modal Fragment -->
+<div th:fragment="eventStatus(event)" class="d-inline-flex align-items-center gap-2">
+    <span th:if="${event.status.name() == 'DRAFT'}" class="badge bg-secondary">Draft</span>
+    <span th:if="${event.status.name() == 'PUBLISHED'}" class="badge bg-success">Published</span>
+    <span th:if="${event.status.name() == 'IN_PROGRESS'}" class="badge bg-info text-dark">In Progress</span>
+    <span th:if="${event.status.name() == 'AWAITING_PROOF'}" class="badge bg-warning text-dark">Awaiting Proof</span>
+    <span th:if="${event.status.name() == 'CANCELLED'}" class="badge bg-danger">Cancelled</span>
+    <span th:if="${event.status.name() == 'COMPLETED' || event.status.name() == 'VERIFIED'}" class="badge bg-dark">Ended</span>
+    <span th:if="${event.needsVolunteers}" class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle"></i> Needs Volunteers</span>
+</div>
+
 <div th:fragment="confirmModal" class="modal fade" id="genericConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -94,10 +103,8 @@
     </div>
 </div>
 
-<!-- Dev Profile Footer Widget Fragment -->
-<div th:fragment="footer" class="container mt-5 mb-5" th:if="${@environment.acceptsProfiles('dev')}">
+<div th:fragment="footer" class="container mt-5 mb-5" th:if="${@environment.acceptsProfiles('dev') and currentUser != null}">
     
-    <!-- Include the Modal structure so it exists on every page using the footer -->
     <div th:replace="~{fragments/layout :: confirmModal}"></div>
 
     <hr>
@@ -128,84 +135,112 @@
         </div>
     </div>
 
-    <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Generic Confirm Modal Script -->
-    <script>
+    <script th:if="${currentUser != null}">
         document.addEventListener("DOMContentLoaded", function() {
+            // Confirm Modal Logic
             const confirmModalEl = document.getElementById('genericConfirmModal');
-            if (!confirmModalEl) return;
-            const confirmModal = new bootstrap.Modal(confirmModalEl);
-            const confirmBtn = document.getElementById('genericConfirmBtn');
-            let currentForm = null;
+            if (confirmModalEl) {
+                const confirmModal = new bootstrap.Modal(confirmModalEl);
+                const confirmBtn = document.getElementById('genericConfirmBtn');
+                let currentForm = null;
 
-            document.querySelectorAll('.btn-confirm').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    currentForm = this.closest('form');
-                    
-                    document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
-                    document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
-                    
-                    confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
-                    
-                    // Reset classes and add the requested style
-                    confirmBtn.className = 'btn';
-                    const style = this.getAttribute('data-confirm-style') || 'primary';
-                    confirmBtn.classList.add('btn-' + style);
-                    
-                    confirmBtn.disabled = false;
-                    confirmModal.show();
+                document.querySelectorAll('.btn-confirm').forEach(button => {
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        currentForm = this.closest('form');
+                        document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
+                        document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
+                        confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
+                        confirmBtn.className = 'btn';
+                        const style = this.getAttribute('data-confirm-style') || 'primary';
+                        confirmBtn.classList.add('btn-' + style);
+                        confirmBtn.disabled = false;
+                        confirmModal.show();
+                    });
                 });
-            });
 
-            confirmBtn.addEventListener('click', function() {
-                if (currentForm) {
-                    this.disabled = true; // Prevent double-clicks
-                    currentForm.submit();
-                }
-            });
+                confirmBtn.addEventListener('click', function() {
+                    if (currentForm) {
+                        this.disabled = true; 
+                        currentForm.submit();
+                    }
+                });
+            }
+
+            // Unread Notification Poller
+            function fetchUnreadCount() {
+                fetch('/notifications/unread-count')
+                    .then(response => response.json())
+                    .then(count => {
+                        const badge = document.getElementById('unreadBadge');
+                        if (badge) {
+                            if (count > 0) {
+                                badge.innerText = count;
+                                badge.style.display = '';
+                            } else {
+                                badge.style.display = 'none';
+                            }
+                        }
+                    })
+                    .catch(e => console.error("Error fetching unread count"));
+            }
+            setInterval(fetchUnreadCount, 10000); // Check every 10 seconds
         });
     </script>
 </div>
-<!-- If dev profile is false, we still need Bootstrap and the script -->
-<div th:unless="${@environment.acceptsProfiles('dev')}">
+<div th:unless="${@environment.acceptsProfiles('dev') and currentUser != null}">
     <div th:replace="~{fragments/layout :: confirmModal}"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+    <script th:if="${currentUser != null}">
         document.addEventListener("DOMContentLoaded", function() {
             const confirmModalEl = document.getElementById('genericConfirmModal');
-            if (!confirmModalEl) return;
-            const confirmModal = new bootstrap.Modal(confirmModalEl);
-            const confirmBtn = document.getElementById('genericConfirmBtn');
-            let currentForm = null;
+            if (confirmModalEl) {
+                const confirmModal = new bootstrap.Modal(confirmModalEl);
+                const confirmBtn = document.getElementById('genericConfirmBtn');
+                let currentForm = null;
 
-            document.querySelectorAll('.btn-confirm').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    currentForm = this.closest('form');
-                    
-                    document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
-                    document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
-                    
-                    confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
-                    
-                    confirmBtn.className = 'btn';
-                    const style = this.getAttribute('data-confirm-style') || 'primary';
-                    confirmBtn.classList.add('btn-' + style);
-                    
-                    confirmBtn.disabled = false;
-                    confirmModal.show();
+                document.querySelectorAll('.btn-confirm').forEach(button => {
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        currentForm = this.closest('form');
+                        document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
+                        document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
+                        confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
+                        confirmBtn.className = 'btn';
+                        const style = this.getAttribute('data-confirm-style') || 'primary';
+                        confirmBtn.classList.add('btn-' + style);
+                        confirmBtn.disabled = false;
+                        confirmModal.show();
+                    });
                 });
-            });
 
-            confirmBtn.addEventListener('click', function() {
-                if (currentForm) {
-                    this.disabled = true;
-                    currentForm.submit();
-                }
-            });
+                confirmBtn.addEventListener('click', function() {
+                    if (currentForm) {
+                        this.disabled = true;
+                        currentForm.submit();
+                    }
+                });
+            }
+
+            function fetchUnreadCount() {
+                fetch('/notifications/unread-count')
+                    .then(response => response.json())
+                    .then(count => {
+                        const badge = document.getElementById('unreadBadge');
+                        if (badge) {
+                            if (count > 0) {
+                                badge.innerText = count;
+                                badge.style.display = '';
+                            } else {
+                                badge.style.display = 'none';
+                            }
+                        }
+                    })
+                    .catch(e => console.error("Error fetching unread count"));
+            }
+            setInterval(fetchUnreadCount, 10000);
         });
     </script>
 </div>

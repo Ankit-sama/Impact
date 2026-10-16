@@ -61,13 +61,18 @@ public class RegistrationController {
         
         Instant now = appClock.now();
         
+        // Exclude Cancelled events from Upcoming
         List<RegistrationDetailsDto> upcoming = allRegistrations.stream()
-                .filter(dto -> dto.getRegistration().getStatus() == RegistrationStatus.CONFIRMED && dto.getEvent().getStartAt().isAfter(now))
+                .filter(dto -> dto.getRegistration().getStatus() == RegistrationStatus.CONFIRMED 
+                        && dto.getEvent().getStartAt().isAfter(now)
+                        && dto.getEvent().getStatus() != EventStatus.CANCELLED)
                 .sorted(Comparator.comparing(dto -> dto.getEvent().getStartAt()))
                 .collect(Collectors.toList());
                 
         List<RegistrationDetailsDto> pastOrWithdrawn = allRegistrations.stream()
-                .filter(dto -> dto.getRegistration().getStatus() != RegistrationStatus.CONFIRMED || !dto.getEvent().getStartAt().isAfter(now))
+                .filter(dto -> dto.getRegistration().getStatus() != RegistrationStatus.CONFIRMED 
+                        || !dto.getEvent().getStartAt().isAfter(now)
+                        || dto.getEvent().getStatus() == EventStatus.CANCELLED)
                 .collect(Collectors.toList());
 
         model.addAttribute("upcomingRegistrations", upcoming);

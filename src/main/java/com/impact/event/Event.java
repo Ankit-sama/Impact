@@ -14,7 +14,7 @@ public class Event {
     @Column(nullable = false)
     private Long creatorId;
 
-    private Long organizationId; // Null for volunteers
+    private Long organizationId;
 
     @Column(nullable = false)
     private String title;
@@ -53,13 +53,24 @@ public class Event {
 
     private Instant publishedAt;
 
+    // Removed the @PrePersist system-clock fallback. We now strictly enforce AppClock initialization before save.
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    // Default constructor
+    @Enumerated(EnumType.STRING)
+    private CancelledBy cancelledBy;
+
+    @Column(columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean needsVolunteers = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean needsFunding = false;
+
     public Event() {}
 
-    // Getters and Setters
     public Long getId() { return id; } public void setId(Long id) { this.id = id; }
     public Long getCreatorId() { return creatorId; } public void setCreatorId(Long creatorId) { this.creatorId = creatorId; }
     public Long getOrganizationId() { return organizationId; } public void setOrganizationId(Long organizationId) { this.organizationId = organizationId; }
@@ -76,4 +87,9 @@ public class Event {
     public EventStatus getStatus() { return status; } public void setStatus(EventStatus status) { this.status = status; }
     public Instant getPublishedAt() { return publishedAt; } public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
     public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    
+    public CancelledBy getCancelledBy() { return cancelledBy; } public void setCancelledBy(CancelledBy cancelledBy) { this.cancelledBy = cancelledBy; }
+    public String getCancelReason() { return cancelReason; } public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+    public Boolean getNeedsVolunteers() { return needsVolunteers; } public void setNeedsVolunteers(Boolean needsVolunteers) { this.needsVolunteers = needsVolunteers; }
+    public Boolean getNeedsFunding() { return needsFunding; } public void setNeedsFunding(Boolean needsFunding) { this.needsFunding = needsFunding; }
 }
