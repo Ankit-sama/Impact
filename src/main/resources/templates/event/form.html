@@ -77,7 +77,7 @@
                             <input type="text" class="form-control" th:field="*{address}">
                         </div>
                         <div class="mb-4">
-                            <label class="form-label">Total Capacity (Volunteers needed)</label>
+                            <label class="form-label">Number of volunteers needed</label>
                             <input type="number" class="form-control" th:field="*{capacity}" min="1">
                             <div class="text-danger small" th:if="${#fields.hasErrors('capacity')}" th:errors="*{capacity}"></div>
                         </div>

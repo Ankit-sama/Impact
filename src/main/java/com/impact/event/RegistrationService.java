@@ -24,6 +24,9 @@ public class RegistrationService {
     private final AppClock appClock;
     private final LifecycleService lifecycleService;
 
+    // Defines active registrants for capacity and notifications
+    private static final List<RegistrationStatus> ACTIVE_STATUSES = List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED);
+
     public RegistrationService(RegistrationRepository registrationRepository, EventRepository eventRepository,
                                UserRepository userRepository, AppClock appClock, @Lazy LifecycleService lifecycleService) {
         this.registrationRepository = registrationRepository;
@@ -39,7 +42,6 @@ public class RegistrationService {
             throw new IllegalStateException("Admins cannot register for events.");
         }
 
-        // Lock and refresh event state precisely at the moment of registration
         Event event = lifecycleService.lockAndTick(eventId);
 
         if (event.getCreatorId().equals(userId)) {
@@ -52,15 +54,15 @@ public class RegistrationService {
             throw new IllegalStateException("Registration is closed. The event has already started.");
         }
 
-        long confirmedCount = registrationRepository.countByEventIdAndStatus(eventId, RegistrationStatus.CONFIRMED);
+        long activeCount = registrationRepository.countByEventIdAndStatusIn(eventId, ACTIVE_STATUSES);
         
         Optional<Registration> existingOpt = registrationRepository.findByEventIdAndUserId(eventId, userId);
         if (existingOpt.isPresent()) {
             Registration existing = existingOpt.get();
-            if (existing.getStatus() == RegistrationStatus.CONFIRMED) {
+            if (existing.getStatus() == RegistrationStatus.CONFIRMED || existing.getStatus() == RegistrationStatus.ATTENDED) {
                 throw new IllegalStateException("You are already registered for this event.");
             }
-            if (confirmedCount >= event.getCapacity()) {
+            if (activeCount >= event.getCapacity()) {
                 throw new IllegalStateException("This event is full.");
             }
             existing.setStatus(RegistrationStatus.CONFIRMED);
@@ -69,7 +71,7 @@ public class RegistrationService {
             return;
         }
 
-        if (confirmedCount >= event.getCapacity()) {
+        if (activeCount >= event.getCapacity()) {
             throw new IllegalStateException("This event is full.");
         }
 
@@ -108,23 +110,49 @@ public class RegistrationService {
         registrationRepository.save(reg);
     }
 
-    public boolean isUserConfirmed(Long eventId, Long userId) {
+    @Transactional
+    public void saveAttendance(Long eventId, Long creatorId, List<Long> attendedUserIds) {
+        Event event = lifecycleService.lockAndTick(eventId);
+        
+        if (!event.getCreatorId().equals(creatorId)) {
+            throw new IllegalStateException("Only the creator can record attendance.");
+        }
+        if (event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
+            throw new IllegalStateException("Attendance can only be recorded when the event is In Progress or Awaiting Proof.");
+        }
+        
+        // Stage 5 note: Check if proof package is submitted here to lock attendance.
+
+        List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(eventId, ACTIVE_STATUSES);
+        for (Registration reg : activeRegs) {
+            if (attendedUserIds != null && attendedUserIds.contains(reg.getUserId())) {
+                reg.setStatus(RegistrationStatus.ATTENDED);
+                reg.setHoursCredited(event.getExpectedHours());
+            } else {
+                reg.setStatus(RegistrationStatus.CONFIRMED);
+                reg.setHoursCredited(0);
+            }
+            registrationRepository.save(reg);
+        }
+    }
+
+    public boolean isUserActive(Long eventId, Long userId) {
         if (userId == null) return false;
         return registrationRepository.findByEventIdAndUserId(eventId, userId)
-                .map(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
+                .map(r -> ACTIVE_STATUSES.contains(r.getStatus()))
                 .orElse(false);
     }
 
     public int getSeatsLeft(Long eventId, int capacity) {
-        long confirmed = registrationRepository.countByEventIdAndStatus(eventId, RegistrationStatus.CONFIRMED);
-        return (int) Math.max(0, capacity - confirmed);
+        long active = registrationRepository.countByEventIdAndStatusIn(eventId, ACTIVE_STATUSES);
+        return (int) Math.max(0, capacity - active);
     }
 
     public Map<Long, Integer> getSeatsLeftMap(List<Event> events) {
         if (events.isEmpty()) return Collections.emptyMap();
         
         List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
-        List<Object[]> counts = registrationRepository.countConfirmedByEventIds(eventIds);
+        List<Object[]> counts = registrationRepository.countActiveByEventIds(eventIds);
         
         Map<Long, Integer> seatsMap = new HashMap<>();
         for (Event e : events) {
@@ -133,8 +161,8 @@ public class RegistrationService {
         
         for (Object[] row : counts) {
             Long eId = (Long) row[0];
-            Long confirmed = (Long) row[1];
-            seatsMap.put(eId, (int) Math.max(0, seatsMap.get(eId) - confirmed));
+            Long active = (Long) row[1];
+            seatsMap.put(eId, (int) Math.max(0, seatsMap.get(eId) - active));
         }
         return seatsMap;
     }
@@ -142,7 +170,6 @@ public class RegistrationService {
     public List<RegistrationDetailsDto> getMyRegistrations(Long userId) {
         List<Registration> registrations = registrationRepository.findByUserIdOrderByRegisteredAtDesc(userId);
         List<RegistrationDetailsDto> dtoList = new ArrayList<>();
-        
         for (Registration reg : registrations) {
             eventRepository.findById(reg.getEventId()).ifPresent(event -> {
                 dtoList.add(new RegistrationDetailsDto(reg, event));
@@ -159,10 +186,10 @@ public class RegistrationService {
             throw new IllegalStateException("You are not authorized to view the participant list for this event.");
         }
 
-        List<Registration> confirmed = registrationRepository.findByEventIdAndStatusOrderByRegisteredAtAsc(eventId, RegistrationStatus.CONFIRMED);
+        List<Registration> active = registrationRepository.findByEventIdAndStatusInOrderByRegisteredAtAsc(eventId, ACTIVE_STATUSES);
         List<ParticipantDto> participants = new ArrayList<>();
         
-        for (Registration reg : confirmed) {
+        for (Registration reg : active) {
             userRepository.findById(reg.getUserId()).ifPresent(user -> {
                 participants.add(new ParticipantDto(reg, user));
             });

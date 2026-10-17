@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header('Edit Published Event - impACT')}"></head>
+<body class="bg-light">
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="d-flex align-items-center mb-4">
+                <button type="button" class="btn btn-outline-secondary btn-sm me-3" onclick="history.back()"><i class="bi bi-arrow-left"></i> Back</button>
+                <h3 class="mb-0">Edit Published Event</h3>
+            </div>
+            
+            <div class="alert alert-info shadow-sm">
+                <h5 class="alert-heading" th:text="${event.title}">Event Title</h5>
+                <p class="mb-0 small">This event is already published. Only limited fields (Purpose, Address, and Capacity) can be modified. You cannot decrease the capacity.</p>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form th:action="@{/events/{id}/edit-published(id=${editDto.id})}" th:object="${editDto}" method="post">
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Purpose / Description</label>
+                            <textarea class="form-control" rows="4" th:field="*{purpose}"></textarea>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('purpose')}" th:errors="*{purpose}"></div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Specific Address (Optional)</label>
+                            <input type="text" class="form-control" th:field="*{address}">
+                            <div class="text-muted small mt-1">City and State are locked: <span th:text="${event.city} + ', ' + ${event.state}"></span></div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Number of volunteers needed</label>
+                            <input type="number" class="form-control" th:field="*{capacity}" th:min="${event.capacity}">
+                            <div class="text-danger small" th:if="${#fields.hasErrors('capacity')}" th:errors="*{capacity}"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

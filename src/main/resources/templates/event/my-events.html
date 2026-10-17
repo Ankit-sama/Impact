@@ -40,6 +40,10 @@
                                th:href="@{/events/{id}/edit(id=${event.id})}" 
                                class="btn btn-sm btn-primary ms-1">Edit</a>
                                
+                            <a th:if="${event.status.name() == 'PUBLISHED'}" 
+                               th:href="@{/events/{id}/edit-published(id=${event.id})}" 
+                               class="btn btn-sm btn-primary ms-1">Edit</a>
+                               
                             <form th:if="${event.status.name() == 'DRAFT'}" 
                                   th:action="@{/events/{id}/publish(id=${event.id})}" 
                                   method="post" class="d-inline ms-1">

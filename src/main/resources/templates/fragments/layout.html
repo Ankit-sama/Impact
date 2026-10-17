@@ -92,8 +92,12 @@
                 <h5 class="modal-title" id="genericConfirmTitle">Confirm Action</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="genericConfirmMessage">
-                Are you sure you want to proceed?
+            <div class="modal-body">
+                <p id="genericConfirmMessage" class="mb-2">Are you sure you want to proceed?</p>
+                <div id="genericConfirmInputContainer" style="display: none;" class="mt-3">
+                    <label class="form-label text-muted small" id="genericConfirmInputLabel">Reason</label>
+                    <textarea class="form-control" id="genericConfirmInput" rows="2"></textarea>
+                </div>
             </div>
             <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -104,9 +108,6 @@
 </div>
 
 <div th:fragment="footer" class="container mt-5 mb-5" th:if="${@environment.acceptsProfiles('dev') and currentUser != null}">
-    
-    <div th:replace="~{fragments/layout :: confirmModal}"></div>
-
     <hr>
     <div class="card border-warning">
         <div class="card-header bg-warning text-dark fw-bold d-flex justify-content-between align-items-center">
@@ -134,95 +135,71 @@
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script th:if="${currentUser != null}">
-        document.addEventListener("DOMContentLoaded", function() {
-            // Confirm Modal Logic
-            const confirmModalEl = document.getElementById('genericConfirmModal');
-            if (confirmModalEl) {
-                const confirmModal = new bootstrap.Modal(confirmModalEl);
-                const confirmBtn = document.getElementById('genericConfirmBtn');
-                let currentForm = null;
-
-                document.querySelectorAll('.btn-confirm').forEach(button => {
-                    button.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        currentForm = this.closest('form');
-                        document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
-                        document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
-                        confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
-                        confirmBtn.className = 'btn';
-                        const style = this.getAttribute('data-confirm-style') || 'primary';
-                        confirmBtn.classList.add('btn-' + style);
-                        confirmBtn.disabled = false;
-                        confirmModal.show();
-                    });
-                });
-
-                confirmBtn.addEventListener('click', function() {
-                    if (currentForm) {
-                        this.disabled = true; 
-                        currentForm.submit();
-                    }
-                });
-            }
-
-            // Unread Notification Poller
-            function fetchUnreadCount() {
-                fetch('/notifications/unread-count')
-                    .then(response => response.json())
-                    .then(count => {
-                        const badge = document.getElementById('unreadBadge');
-                        if (badge) {
-                            if (count > 0) {
-                                badge.innerText = count;
-                                badge.style.display = '';
-                            } else {
-                                badge.style.display = 'none';
-                            }
-                        }
-                    })
-                    .catch(e => console.error("Error fetching unread count"));
-            }
-            setInterval(fetchUnreadCount, 10000); // Check every 10 seconds
-        });
-    </script>
 </div>
-<div th:unless="${@environment.acceptsProfiles('dev') and currentUser != null}">
-    <div th:replace="~{fragments/layout :: confirmModal}"></div>
+
+<div th:fragment="scripts">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script th:if="${currentUser != null}">
         document.addEventListener("DOMContentLoaded", function() {
             const confirmModalEl = document.getElementById('genericConfirmModal');
-            if (confirmModalEl) {
-                const confirmModal = new bootstrap.Modal(confirmModalEl);
-                const confirmBtn = document.getElementById('genericConfirmBtn');
-                let currentForm = null;
+            if (!confirmModalEl) return;
+            const confirmModal = new bootstrap.Modal(confirmModalEl);
+            const confirmBtn = document.getElementById('genericConfirmBtn');
+            const inputContainer = document.getElementById('genericConfirmInputContainer');
+            const inputField = document.getElementById('genericConfirmInput');
+            let currentForm = null;
+            let currentInputName = null;
 
-                document.querySelectorAll('.btn-confirm').forEach(button => {
-                    button.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        currentForm = this.closest('form');
-                        document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
-                        document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
-                        confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
-                        confirmBtn.className = 'btn';
-                        const style = this.getAttribute('data-confirm-style') || 'primary';
-                        confirmBtn.classList.add('btn-' + style);
-                        confirmBtn.disabled = false;
-                        confirmModal.show();
-                    });
-                });
-
-                confirmBtn.addEventListener('click', function() {
-                    if (currentForm) {
-                        this.disabled = true;
-                        currentForm.submit();
+            document.querySelectorAll('.btn-confirm').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    currentForm = this.closest('form');
+                    
+                    document.getElementById('genericConfirmTitle').innerText = this.getAttribute('data-confirm-title') || 'Confirm';
+                    document.getElementById('genericConfirmMessage').innerText = this.getAttribute('data-confirm-message') || 'Are you sure?';
+                    confirmBtn.innerText = this.getAttribute('data-confirm-button') || 'Confirm';
+                    confirmBtn.className = 'btn ' + ('btn-' + (this.getAttribute('data-confirm-style') || 'primary'));
+                    
+                    const reqInput = this.getAttribute('data-confirm-input');
+                    currentInputName = this.getAttribute('data-confirm-input-name') || 'cancelReason';
+                    
+                    if (inputContainer && inputField) {
+                        inputField.value = ''; // Safely clear old input
+                        if (reqInput === 'optional' || reqInput === 'required') {
+                            inputContainer.style.display = 'block';
+                            if (reqInput === 'required') {
+                                confirmBtn.disabled = true;
+                                inputField.oninput = function() {
+                                    confirmBtn.disabled = this.value.trim().length === 0;
+                                };
+                            } else {
+                                confirmBtn.disabled = false;
+                                inputField.oninput = null;
+                            }
+                        } else {
+                            inputContainer.style.display = 'none';
+                            confirmBtn.disabled = false;
+                            inputField.oninput = null;
+                        }
                     }
+                    
+                    confirmModal.show();
                 });
-            }
+            });
+
+            confirmBtn.addEventListener('click', function() {
+                if (currentForm) {
+                    this.disabled = true;
+                    if (inputContainer && inputContainer.style.display === 'block') {
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.name = currentInputName;
+                        hiddenInput.value = inputField.value;
+                        currentForm.appendChild(hiddenInput);
+                    }
+                    currentForm.submit();
+                }
+            });
 
             function fetchUnreadCount() {
                 fetch('/notifications/unread-count')
@@ -230,20 +207,20 @@
                     .then(count => {
                         const badge = document.getElementById('unreadBadge');
                         if (badge) {
-                            if (count > 0) {
-                                badge.innerText = count;
-                                badge.style.display = '';
-                            } else {
-                                badge.style.display = 'none';
-                            }
+                            if (count > 0) { badge.innerText = count; badge.style.display = ''; } 
+                            else { badge.style.display = 'none'; }
                         }
-                    })
-                    .catch(e => console.error("Error fetching unread count"));
+                    }).catch(e => console.error(e));
             }
             setInterval(fetchUnreadCount, 10000);
         });
     </script>
 </div>
+
+<th:block th:unless="${@environment.acceptsProfiles('dev') and currentUser != null}">
+    <div th:replace="~{fragments/layout :: confirmModal}"></div>
+</th:block>
+<div th:replace="~{fragments/layout :: scripts}"></div>
 
 </body>
 </html>

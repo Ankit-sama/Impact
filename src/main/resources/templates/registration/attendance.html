@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header('Record Attendance - impACT')}"></head>
+<body class="bg-light">
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mb-5">
+    <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
+    <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
+
+    <div class="d-flex align-items-center mb-4">
+        <button type="button" class="btn btn-outline-secondary btn-sm me-3" onclick="history.back()"><i class="bi bi-arrow-left"></i> Back</button>
+        <div>
+            <h3 class="mb-0">Record Attendance</h3>
+            <p class="text-muted mb-0" th:text="${event.title}">Event Title</p>
+        </div>
+    </div>
+
+    <!-- Note for Stage 5: Attendance gets locked upon proof submission -->
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Ticked volunteers will be credited <strong><span th:text="${event.expectedHours}"></span> expected hours</strong>. Unticked volunteers receive 0 hours. Attendance will be locked permanently once you submit your proof package in Stage 5.
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Active Registrants</span>
+            <span class="badge bg-primary rounded-pill"><span id="attendanceCounter" th:text="${attendedCount}">0</span> of <span th:text="${#lists.size(participants)}"></span> present</span>
+        </div>
+        <div class="card-body p-0">
+            <form th:action="@{/events/{id}/attendance(id=${event.id})}" method="post">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;" class="text-center">#</th>
+                            <th>Participant Name</th>
+                            <th>City</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="p : ${participants}">
+                            <td class="text-center align-middle">
+                                <div class="form-check d-flex justify-content-center">
+                                    <input class="form-check-input attendance-checkbox" type="checkbox" name="attendedUserIds" 
+                                           th:value="${p.user.id}" 
+                                           th:checked="${p.registration.status.name() == 'ATTENDED'}">
+                                </div>
+                            </td>
+                            <td class="align-middle fw-semibold" th:text="${p.user.name}">Name</td>
+                            <td class="align-middle text-muted" th:text="${p.user.city ?: 'Not provided'}">City</td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(participants)}">
+                            <td colspan="3" class="text-center text-muted py-4">No active participants found.</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="p-3 bg-light border-top d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">Save Attendance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const checkboxes = document.querySelectorAll('.attendance-checkbox');
+        const counter = document.getElementById('attendanceCounter');
+        
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                let count = 0;
+                checkboxes.forEach(box => { if(box.checked) count++; });
+                counter.innerText = count;
+            });
+        });
+    });
+</script>
+</body>
+</html>

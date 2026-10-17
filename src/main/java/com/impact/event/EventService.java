@@ -4,6 +4,7 @@ import com.impact.admin.ActivityLogService;
 import com.impact.config.AppClock;
 import com.impact.config.ImpactProperties;
 import com.impact.event.dto.EventFormDto;
+import com.impact.event.dto.EventPublishedEditDto;
 import com.impact.notification.NotificationService;
 import com.impact.organization.OrgStatus;
 import com.impact.organization.Organization;
@@ -42,6 +43,7 @@ public class EventService {
     private final LifecycleService lifecycleService;
 
     private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
+    private static final List<RegistrationStatus> ACTIVE_STATUSES = List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED);
 
     public EventService(EventRepository eventRepository, OrganizationRepository organizationRepository,
                         UserRepository userRepository, AppClock appClock, ImpactProperties properties,
@@ -90,14 +92,9 @@ public class EventService {
     public List<Event> searchDiscoverEvents(String keyword, EventCategory category, String city, String startFrom, String startTo) {
         Instant fromInstant = null;
         Instant toInstant = null;
-        
         try {
-            if (startFrom != null && !startFrom.isBlank()) {
-                fromInstant = LocalDate.parse(startFrom).atStartOfDay(IST_ZONE).toInstant();
-            }
-            if (startTo != null && !startTo.isBlank()) {
-                toInstant = LocalDate.parse(startTo).atTime(LocalTime.MAX).atZone(IST_ZONE).toInstant();
-            }
+            if (startFrom != null && !startFrom.isBlank()) fromInstant = LocalDate.parse(startFrom).atStartOfDay(IST_ZONE).toInstant();
+            if (startTo != null && !startTo.isBlank()) toInstant = LocalDate.parse(startTo).atTime(LocalTime.MAX).atZone(IST_ZONE).toInstant();
         } catch (Exception e) { }
 
         List<EventStatus> visibleStatuses = List.of(EventStatus.PUBLISHED, EventStatus.IN_PROGRESS);
@@ -115,20 +112,16 @@ public class EventService {
     @Transactional
     public void createDraft(Long creatorId, Role role, EventFormDto dto) {
         validateEventTiming(dto);
-
         Event event = new Event();
         event.setCreatorId(creatorId);
-        
         if (role == Role.ROLE_ORG_MANAGER) {
             Organization org = organizationRepository.findByManagerId(creatorId)
                     .orElseThrow(() -> new IllegalStateException("Manager has no organization"));
             event.setOrganizationId(org.getId());
         }
-
         mapDtoToEvent(dto, event);
         event.setStatus(EventStatus.DRAFT);
         event.setCreatedAt(appClock.now());
-        
         eventRepository.save(event);
     }
 
@@ -138,13 +131,33 @@ public class EventService {
         if (!event.getCreatorId().equals(creatorId)) {
             throw new IllegalStateException("You are not authorized to access this event.");
         }
-        
         if (event.getStatus() != EventStatus.DRAFT) {
             throw new IllegalStateException("Only Draft events can be edited completely.");
         }
-        
         validateEventTiming(dto);
         mapDtoToEvent(dto, event);
+        eventRepository.save(event);
+    }
+
+    @Transactional
+    public void updatePublishedEvent(Long eventId, Long creatorId, EventPublishedEditDto dto) {
+        Event event = lifecycleService.lockAndTick(eventId);
+        if (!event.getCreatorId().equals(creatorId)) {
+            throw new IllegalStateException("You are not authorized to edit this event.");
+        }
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new IllegalStateException("This form is only for Published events.");
+        }
+        if (!appClock.now().isBefore(event.getStartAt())) {
+            throw new IllegalStateException("Cannot edit a published event after it has started.");
+        }
+        if (dto.getCapacity() < event.getCapacity()) {
+            throw new IllegalArgumentException("Capacity can only be increased, never decreased.");
+        }
+
+        event.setPurpose(dto.getPurpose());
+        event.setAddress(dto.getAddress());
+        event.setCapacity(dto.getCapacity());
         eventRepository.save(event);
     }
 
@@ -154,7 +167,6 @@ public class EventService {
         if (!event.getCreatorId().equals(creatorId)) {
             throw new IllegalStateException("You are not authorized to access this event.");
         }
-        
         if (event.getStatus() != EventStatus.DRAFT) {
             throw new IllegalStateException("Only Draft events can be published.");
         }
@@ -164,7 +176,6 @@ public class EventService {
             throw new IllegalStateException("Event start time must be at least " + 
                     properties.getEvent().getReadinessWindowMinutes() + " minutes from now to allow for readiness checks.");
         }
-
         if (event.getOrganizationId() != null) {
             Organization org = organizationRepository.findById(event.getOrganizationId()).orElseThrow();
             if (org.getStatus() != OrgStatus.VERIFIED) {
@@ -178,41 +189,70 @@ public class EventService {
     }
 
     @Transactional
+    public void cancelByCreator(Long eventId, Long creatorId, String reason) {
+        Event event = lifecycleService.lockAndTick(eventId);
+        if (!event.getCreatorId().equals(creatorId)) {
+            throw new IllegalStateException("You are not authorized to cancel this event.");
+        }
+        if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS) {
+            throw new IllegalStateException("You can only cancel Published or In Progress events.");
+        }
+        if (!appClock.now().isBefore(event.getEndAt())) {
+            throw new IllegalStateException("You cannot cancel an event after its end time.");
+        }
+        cancelEvent(event, CancelledBy.CREATOR, reason);
+    }
+
+    @Transactional
+    public void cancelByAdmin(Long eventId, Long adminId, String reason) {
+        Event event = lifecycleService.lockAndTick(eventId);
+        if (reason == null || reason.trim().isBlank()) {
+            throw new IllegalArgumentException("A reason is required when an admin cancels an event.");
+        }
+        if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
+            throw new IllegalStateException("Cannot cancel an event in its current status.");
+        }
+        cancelEvent(event, CancelledBy.ADMIN, reason);
+    }
+
+    @Transactional
     public void cancelEvent(Event event, CancelledBy cancelledBy, String reason) {
         if (event.getStatus() == EventStatus.CANCELLED) return;
 
         event.setStatus(EventStatus.CANCELLED);
         event.setCancelledBy(cancelledBy);
-        event.setCancelReason(reason);
+        event.setCancelReason(reason != null && !reason.isBlank() ? reason : "Not provided");
         event.setNeedsVolunteers(false);
         eventRepository.save(event);
 
         if (cancelledBy != CancelledBy.CREATOR) {
             notificationService.createNotification(event.getCreatorId(),
-                    "Your event '" + event.getTitle() + "' was cancelled by " + cancelledBy.name() + ". Reason: " + reason,
+                    "Your event '" + event.getTitle() + "' was cancelled by the " + cancelledBy.name().toLowerCase() + ". Reason: " + event.getCancelReason(),
                     "/events/" + event.getId());
         }
 
-        List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(event.getId(), List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
+        String cancelSource = cancelledBy == CancelledBy.CREATOR ? "organizer" : cancelledBy.name().toLowerCase();
+        List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(event.getId(), ACTIVE_STATUSES);
         for (Registration reg : activeRegs) {
+            reg.setHoursCredited(0);
+            registrationRepository.save(reg);
+            
             notificationService.createNotification(reg.getUserId(),
-                    "The event '" + event.getTitle() + "' has been cancelled. Reason: " + reason,
+                    "'" + event.getTitle() + "' was cancelled by the " + cancelSource + ". Reason: " + event.getCancelReason(),
                     "/events/" + event.getId());
         }
 
         activityLogService.logAction(
                 event.getCreatorId(),
-                "EVENT_CANCELLED", "EVENT", event.getId(), "Cancelled by " + cancelledBy.name() + ". Reason: " + reason
+                "EVENT_CANCELLED", "EVENT", event.getId(), "Cancelled by " + cancelledBy.name() + ". Reason: " + event.getCancelReason()
         );
-
-        // TODO (Stage 6): Refund simulated contributions here
+        // Stage 6 Refunds
     }
 
     public List<Event> findSimilarEvents(Long eventId, Long creatorId) {
         Event event = getEventForCreator(eventId, creatorId);
         Instant windowStart = event.getStartAt().minus(properties.getSimilarity().getWindowDays(), ChronoUnit.DAYS);
         Instant windowEnd = event.getStartAt().plus(properties.getSimilarity().getWindowDays(), ChronoUnit.DAYS);
-        
         return eventRepository.findSimilarEvents(creatorId, event.getCategory(), event.getCity(), windowStart, windowEnd);
     }
 
@@ -227,6 +267,15 @@ public class EventService {
         dto.setExpectedHours(event.getExpectedHours());
         dto.setState(event.getState());
         dto.setCity(event.getCity());
+        dto.setAddress(event.getAddress());
+        dto.setCapacity(event.getCapacity());
+        return dto;
+    }
+
+    public EventPublishedEditDto convertToPublishedEditDto(Event event) {
+        EventPublishedEditDto dto = new EventPublishedEditDto();
+        dto.setId(event.getId());
+        dto.setPurpose(event.getPurpose());
         dto.setAddress(event.getAddress());
         dto.setCapacity(event.getCapacity());
         return dto;
