@@ -153,6 +153,21 @@ public class EventService {
         eventRepository.save(event);
     }
 
+    @Transactional
+    public void deleteDraftEvent(Long eventId, Long creatorId) {
+        Event event = lifecycleService.lockAndTick(eventId);
+        if (!event.getCreatorId().equals(creatorId)) {
+            throw new IllegalStateException("You are not authorized to access this event.");
+        }
+        
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new IllegalStateException("Only Draft events can be deleted.");
+        }
+        
+        eventRepository.delete(event);
+        logger.info("Draft Event {} deleted successfully by user {}", eventId, creatorId);
+    }
+
     public PublishedEventEditDto getPublishedEventForEdit(Long eventId, Long creatorId) {
         Event event = getEventForCreator(eventId, creatorId);
         if (event.getStatus() != EventStatus.PUBLISHED || !event.getStartAt().isAfter(appClock.now())) {

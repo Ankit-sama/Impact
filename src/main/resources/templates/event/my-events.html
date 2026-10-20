@@ -25,6 +25,7 @@
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
+                <!-- LIVE UPDATE WRAPPER -->
                 <tbody class="live-update" id="my-events-tbody">
                     <tr th:each="event : ${events}">
                         <td class="align-middle fw-semibold" th:text="${event.title}"></td>
@@ -40,6 +41,17 @@
                                th:href="@{/events/{id}/edit(id=${event.id})}" 
                                class="btn btn-sm btn-primary ms-1">Edit</a>
                                
+                            <!-- NEW: Delete Draft Button -->
+                            <form th:if="${event.status.name() == 'DRAFT'}" 
+                                  th:action="@{/events/{id}/delete-draft(id=${event.id})}" 
+                                  method="post" class="d-inline ms-1">
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-confirm"
+                                        data-confirm-title="Delete Draft?" 
+                                        data-confirm-message="This draft will be permanently deleted. This cannot be undone." 
+                                        data-confirm-button="Delete" 
+                                        data-confirm-style="danger">Delete</button>
+                            </form>
+
                             <a th:if="${event.status.name() == 'PUBLISHED' && event.startAt.isAfter(@appClock.now())}" 
                                th:href="@{/events/{id}/edit-published(id=${event.id})}" 
                                class="btn btn-sm btn-primary ms-1">Edit</a>

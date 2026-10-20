@@ -167,6 +167,19 @@ public class EventController {
         }
     }
 
+    // NEW: Delete Draft Endpoint
+    @PostMapping("/events/{id}/delete-draft")
+    public String deleteDraft(@PathVariable Long id, Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        try {
+            eventService.deleteDraftEvent(id, userDetails.getUser().getId());
+            ra.addFlashAttribute("successMsg", "Draft deleted successfully.");
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+        }
+        return "redirect:/my-events";
+    }
+
     @GetMapping("/events/{id}/edit-published")
     public String showEditPublishedForm(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
