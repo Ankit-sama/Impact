@@ -21,7 +21,8 @@
                     <a th:href="@{/my-registrations}" class="btn btn-sm btn-outline-primary">View all</a>
                 </div>
                 <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
+                    <!-- LIVE UPDATE WRAPPER -->
+                    <div class="list-group list-group-flush live-update" id="vol-upcoming-list">
                         <a th:each="dto : ${upcomingRegistrations}" th:href="@{/events/{id}(id=${dto.event.id})}" class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
                                 <h6 class="mb-1 fw-bold" th:text="${dto.event.title}">Event Title</h6>

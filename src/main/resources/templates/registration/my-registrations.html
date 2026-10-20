@@ -28,7 +28,8 @@
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <!-- LIVE UPDATE WRAPPER -->
+                <tbody class="live-update" id="my-reg-upcoming">
                     <tr th:each="dto : ${upcomingRegistrations}">
                         <td class="align-middle fw-semibold">
                             <a th:href="@{/events/{id}(id=${dto.event.id})}" class="text-decoration-none text-dark" th:text="${dto.event.title}"></a>
@@ -36,7 +37,6 @@
                         <td class="align-middle" th:text="${#temporals.format(dto.event.startAt, 'dd MMM yyyy, HH:mm')}"></td>
                         <td class="align-middle" th:text="${dto.event.city}"></td>
                         <td class="align-middle">
-                            <!-- Show the shared event badge here too -->
                             <div th:replace="~{fragments/layout :: eventStatus(event=${dto.event})}"></div>
                             <span class="badge bg-success ms-1">Registration Confirmed</span>
                         </td>
@@ -71,7 +71,8 @@
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody>
+                <!-- LIVE UPDATE WRAPPER -->
+                <tbody class="live-update" id="my-reg-past">
                     <tr th:each="dto : ${pastRegistrations}">
                         <td class="align-middle">
                             <a th:href="@{/events/{id}(id=${dto.event.id})}" class="text-decoration-none text-muted" th:text="${dto.event.title}"></a>
@@ -79,10 +80,8 @@
                         <td class="align-middle text-muted" th:text="${#temporals.format(dto.event.startAt, 'dd MMM yyyy, HH:mm')}"></td>
                         <td class="align-middle text-muted" th:text="${dto.event.city}"></td>
                         <td class="align-middle">
-                            <!-- Display the central event status -->
                             <div th:replace="~{fragments/layout :: eventStatus(event=${dto.event})}"></div>
                             
-                            <!-- Only show registration statuses if the event isn't cancelled -->
                             <th:block th:if="${dto.event.status.name() != 'CANCELLED'}">
                                 <span th:if="${dto.registration.status.name() == 'WITHDRAWN'}" class="badge bg-secondary ms-1">Withdrawn</span>
                                 <span th:if="${dto.registration.status.name() == 'CONFIRMED'}" class="badge bg-dark ms-1">Past Event</span>

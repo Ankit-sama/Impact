@@ -25,7 +25,8 @@
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <!-- LIVE UPDATE WRAPPER -->
+                <tbody class="live-update" id="my-events-tbody">
                     <tr th:each="event : ${events}">
                         <td class="align-middle fw-semibold" th:text="${event.title}"></td>
                         <td class="align-middle" th:text="${#temporals.format(event.startAt, 'dd MMM yyyy')}"></td>

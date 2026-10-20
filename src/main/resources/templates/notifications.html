@@ -6,9 +6,7 @@
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
 
 <div class="container mb-5">
-    <!-- Standard redirect success message -->
     <div th:if="${successMsg}" class="alert alert-success" th:text="${successMsg}"></div>
-    <!-- Hidden success message for the AJAX call -->
     <div id="ajaxSuccessMsg" class="alert alert-success" style="display: none;"></div>
 
     <div class="row justify-content-center">
@@ -19,13 +17,13 @@
                     <h3 class="mb-0">Your Notifications</h3>
                 </div>
                 
-                <!-- Added ID to this form -->
                 <form th:if="${!#lists.isEmpty(notifications)}" th:action="@{/notifications/mark-all-read}" method="post" id="markAllReadForm">
                     <button type="submit" class="btn btn-sm btn-outline-primary">Mark all as read</button>
                 </form>
             </div>
             
-            <div class="list-group shadow-sm" id="notificationList">
+            <!-- LIVE UPDATE WRAPPER -->
+            <div class="list-group shadow-sm live-update" id="notificationList">
                 <form th:each="note : ${notifications}" 
                       th:action="@{/notifications/{id}/read(id=${note.id})}" 
                       method="post" class="m-0 p-0">
@@ -51,48 +49,36 @@
 
 <div th:replace="~{fragments/layout :: footer}"></div>
 
-<!-- AJAX script to handle "Mark all as read" smoothly -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const markAllForm = document.getElementById('markAllReadForm');
         if (markAllForm) {
             markAllForm.addEventListener('submit', function(e) {
-                e.preventDefault(); // Stop browser from leaving page
-                
-                // Extract CSRF token and parameter name from the form automatically
+                e.preventDefault(); 
                 const csrfInput = this.querySelector('input[name^="_csrf"]');
                 const csrfToken = csrfInput ? csrfInput.value : '';
                 const csrfParam = csrfInput ? csrfInput.name : '_csrf';
 
                 fetch('/notifications/api/mark-all-read', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ [csrfParam]: csrfToken })
                 })
                 .then(response => {
                     if (response.ok) {
-                        // 1. Remove bold formatting from all rows
                         document.querySelectorAll('.list-group-item-light.fw-bold').forEach(el => {
                             el.classList.remove('list-group-item-light', 'fw-bold');
                             el.classList.add('text-muted');
                         });
-                        
-                        // 2. Remove all red unread dots
                         document.querySelectorAll('.unread-dot').forEach(el => el.remove());
-                        
-                        // 3. Hide the button itself
                         this.style.display = 'none';
-
-                        // 4. Show success message
                         const alertMsg = document.getElementById('ajaxSuccessMsg');
                         alertMsg.innerText = 'All notifications marked as read.';
                         alertMsg.style.display = 'block';
-
-                        // 5. Hide the navbar badge immediately (poller handles it moving forward)
-                        const navBadge = document.getElementById('unreadBadge');
-                        if (navBadge) navBadge.style.display = 'none';
+                        
+                        // Clear the wrapper contents to remove the badge instantly
+                        const navBadgeWrapper = document.getElementById('navbar-badge-container');
+                        if (navBadgeWrapper) navBadgeWrapper.innerHTML = '';
                     }
                 });
             });

@@ -32,7 +32,8 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <!-- LIVE UPDATE WRAPPER -->
+                        <tbody class="live-update" id="admin-pending-table">
                             <tr th:each="org : ${pendingOrgs}">
                                 <td th:text="${org.name}"></td>
                                 <td th:text="${org.city}"></td>
@@ -64,7 +65,8 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <!-- LIVE UPDATE WRAPPER -->
+                        <tbody class="live-update" id="admin-rejected-table">
                             <tr th:each="org : ${rejectedOrgs}">
                                 <td th:text="${org.name}"></td>
                                 <td th:text="${org.city}"></td>
@@ -78,10 +80,10 @@
                                         <form th:action="@{/admin/organization/{id}/reopen(id=${org.id})}" method="post">
                                           <div class="modal-content">
                                             <div class="modal-header">
-                                              <h5 class="modal-title">Reopen Organization</h5>
+                                              <h5 class="modal-title text-dark">Reopen Organization</h5>
                                               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                             </div>
-                                            <div class="modal-body">
+                                            <div class="modal-body text-dark text-start">
                                               <p>Reopening <strong><span th:text="${org.name}"></span></strong> will set its status to Returned for Correction, allowing the manager to edit and resubmit.</p>
                                               <div class="mb-3">
                                                 <label class="form-label">Reason for reopening</label>
