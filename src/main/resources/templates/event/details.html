@@ -25,7 +25,6 @@
                     
                     <h2 class="fw-bold mb-4" th:text="${event.title}">Event Title</h2>
 
-                    <!-- Cancellation Alert -->
                     <div th:if="${event.status.name() == 'CANCELLED'}" class="alert alert-danger mb-4">
                         <h5 class="alert-heading"><i class="bi bi-x-circle-fill"></i> Event Cancelled</h5>
                         <p class="mb-0"><strong>Cancelled by:</strong> <span th:text="${event.cancelledBy.name()}"></span></p>
@@ -49,6 +48,10 @@
                         </div>
                         <div th:if="${event.status.name() != 'DRAFT'}">
                             <p class="text-muted small mb-0">Editing after publish will be available in a later stage.</p>
+                            
+                            <a th:if="${event.status.name() == 'IN_PROGRESS' || event.status.name() == 'AWAITING_PROOF'}" 
+                               th:href="@{/events/{id}/attendance(id=${event.id})}" 
+                               class="btn btn-primary btn-sm mt-2">Attendance</a>
                         </div>
                     </div>
                 </div>

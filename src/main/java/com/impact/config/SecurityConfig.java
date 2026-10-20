@@ -28,8 +28,9 @@ public class SecurityConfig {
                 .requestMatchers("/volunteer/**").hasAuthority("ROLE_VOLUNTEER")
                 .requestMatchers("/manager/**").hasAuthority("ROLE_ORG_MANAGER")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
-                // Added "/" to this list so the AuthController can process the root redirect to /discover
                 .requestMatchers("/", "/organization/**", "/discover", "/events/**").permitAll()
+                // Explicitly require authentication for event actions
+                .requestMatchers("/events/*/register", "/events/*/withdraw", "/events/*/attendance", "/events/*/participants").authenticated()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form

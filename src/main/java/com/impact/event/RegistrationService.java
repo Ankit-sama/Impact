@@ -7,6 +7,8 @@ import com.impact.scheduler.LifecycleService;
 import com.impact.user.Role;
 import com.impact.user.User;
 import com.impact.user.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class RegistrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(RegistrationService.class);
 
     private final RegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
@@ -39,7 +43,6 @@ public class RegistrationService {
             throw new IllegalStateException("Admins cannot register for events.");
         }
 
-        // Lock and refresh event state precisely at the moment of registration
         Event event = lifecycleService.lockAndTick(eventId);
 
         if (event.getCreatorId().equals(userId)) {
@@ -52,15 +55,15 @@ public class RegistrationService {
             throw new IllegalStateException("Registration is closed. The event has already started.");
         }
 
-        long confirmedCount = registrationRepository.countByEventIdAndStatus(eventId, RegistrationStatus.CONFIRMED);
+        long activeCount = registrationRepository.countByEventIdAndStatusIn(eventId, List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
         
         Optional<Registration> existingOpt = registrationRepository.findByEventIdAndUserId(eventId, userId);
         if (existingOpt.isPresent()) {
             Registration existing = existingOpt.get();
-            if (existing.getStatus() == RegistrationStatus.CONFIRMED) {
+            if (existing.getStatus() == RegistrationStatus.CONFIRMED || existing.getStatus() == RegistrationStatus.ATTENDED) {
                 throw new IllegalStateException("You are already registered for this event.");
             }
-            if (confirmedCount >= event.getCapacity()) {
+            if (activeCount >= event.getCapacity()) {
                 throw new IllegalStateException("This event is full.");
             }
             existing.setStatus(RegistrationStatus.CONFIRMED);
@@ -69,7 +72,7 @@ public class RegistrationService {
             return;
         }
 
-        if (confirmedCount >= event.getCapacity()) {
+        if (activeCount >= event.getCapacity()) {
             throw new IllegalStateException("This event is full.");
         }
 
@@ -108,23 +111,23 @@ public class RegistrationService {
         registrationRepository.save(reg);
     }
 
-    public boolean isUserConfirmed(Long eventId, Long userId) {
+    public boolean isUserActive(Long eventId, Long userId) {
         if (userId == null) return false;
         return registrationRepository.findByEventIdAndUserId(eventId, userId)
-                .map(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
+                .map(r -> r.getStatus() == RegistrationStatus.CONFIRMED || r.getStatus() == RegistrationStatus.ATTENDED)
                 .orElse(false);
     }
 
     public int getSeatsLeft(Long eventId, int capacity) {
-        long confirmed = registrationRepository.countByEventIdAndStatus(eventId, RegistrationStatus.CONFIRMED);
-        return (int) Math.max(0, capacity - confirmed);
+        long active = registrationRepository.countByEventIdAndStatusIn(eventId, List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
+        return (int) Math.max(0, capacity - active);
     }
 
     public Map<Long, Integer> getSeatsLeftMap(List<Event> events) {
         if (events.isEmpty()) return Collections.emptyMap();
         
         List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
-        List<Object[]> counts = registrationRepository.countConfirmedByEventIds(eventIds);
+        List<Object[]> counts = registrationRepository.countActiveByEventIds(eventIds);
         
         Map<Long, Integer> seatsMap = new HashMap<>();
         for (Event e : events) {
@@ -133,8 +136,8 @@ public class RegistrationService {
         
         for (Object[] row : counts) {
             Long eId = (Long) row[0];
-            Long confirmed = (Long) row[1];
-            seatsMap.put(eId, (int) Math.max(0, seatsMap.get(eId) - confirmed));
+            Long active = (Long) row[1];
+            seatsMap.put(eId, (int) Math.max(0, seatsMap.get(eId) - active));
         }
         return seatsMap;
     }
@@ -159,14 +162,54 @@ public class RegistrationService {
             throw new IllegalStateException("You are not authorized to view the participant list for this event.");
         }
 
-        List<Registration> confirmed = registrationRepository.findByEventIdAndStatusOrderByRegisteredAtAsc(eventId, RegistrationStatus.CONFIRMED);
+        List<Registration> active = registrationRepository.findByEventIdAndStatusInOrderByRegisteredAtAsc(eventId, List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
         List<ParticipantDto> participants = new ArrayList<>();
         
-        for (Registration reg : confirmed) {
+        for (Registration reg : active) {
             userRepository.findById(reg.getUserId()).ifPresent(user -> {
                 participants.add(new ParticipantDto(reg, user));
             });
         }
         return participants;
+    }
+
+    @Transactional
+    public void saveAttendance(Long eventId, Long creatorId, List<Long> attendedIds) {
+        try {
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+
+            if (!event.getCreatorId().equals(creatorId)) {
+                throw new IllegalStateException("Only the creator can record attendance.");
+            }
+            if (event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
+                throw new IllegalStateException("Attendance can only be recorded when the event is In Progress or Awaiting Proof.");
+            }
+            if (appClock.now().isBefore(event.getStartAt())) {
+                throw new IllegalStateException("Cannot record attendance before the event starts.");
+            }
+
+            List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(eventId, List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
+            
+            // The controller now guarantees attendedIds is a valid list (even if empty), so no null check is needed.
+            Set<Long> attendedSet = new HashSet<>(attendedIds);
+
+            for (Registration reg : activeRegs) {
+                if (attendedSet.contains(reg.getId())) {
+                    reg.setStatus(RegistrationStatus.ATTENDED);
+                    reg.setHoursCredited(event.getExpectedHours());
+                } else {
+                    reg.setStatus(RegistrationStatus.CONFIRMED);
+                    reg.setHoursCredited(0); // Treat as absent
+                }
+            }
+            registrationRepository.saveAll(activeRegs);
+            
+            logger.info("Attendance saved for event {} by user {}. Marked {} as attended.", eventId, creatorId, attendedSet.size());
+            
+        } catch (Exception e) {
+            logger.error("Failed to save attendance for event: " + eventId, e);
+            throw e;
+        }
     }
 }

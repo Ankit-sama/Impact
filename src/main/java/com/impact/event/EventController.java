@@ -67,11 +67,12 @@ public class EventController {
         if (authentication != null && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             userId = userDetails.getUser().getId();
-            isConfirmed = registrationService.isUserConfirmed(id, userId);
+            
+            // FIX: Use the updated isUserActive method to catch both CONFIRMED and ATTENDED users
+            isConfirmed = registrationService.isUserActive(id, userId);
         }
 
         try {
-            // Force a mini-tick on this specific event to guarantee status is perfectly up-to-date
             lifecycleService.lockAndTick(id);
 
             Event event = eventService.getPublicEventDetails(id, userId);

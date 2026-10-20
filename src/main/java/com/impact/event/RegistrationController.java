@@ -10,6 +10,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.Instant;
@@ -61,16 +62,15 @@ public class RegistrationController {
         
         Instant now = appClock.now();
         
-        // Exclude Cancelled events from Upcoming
         List<RegistrationDetailsDto> upcoming = allRegistrations.stream()
-                .filter(dto -> dto.getRegistration().getStatus() == RegistrationStatus.CONFIRMED 
+                .filter(dto -> (dto.getRegistration().getStatus() == RegistrationStatus.CONFIRMED || dto.getRegistration().getStatus() == RegistrationStatus.ATTENDED)
                         && dto.getEvent().getStartAt().isAfter(now)
                         && dto.getEvent().getStatus() != EventStatus.CANCELLED)
                 .sorted(Comparator.comparing(dto -> dto.getEvent().getStartAt()))
                 .collect(Collectors.toList());
                 
         List<RegistrationDetailsDto> pastOrWithdrawn = allRegistrations.stream()
-                .filter(dto -> dto.getRegistration().getStatus() != RegistrationStatus.CONFIRMED 
+                .filter(dto -> (dto.getRegistration().getStatus() != RegistrationStatus.CONFIRMED && dto.getRegistration().getStatus() != RegistrationStatus.ATTENDED)
                         || !dto.getEvent().getStartAt().isAfter(now)
                         || dto.getEvent().getStatus() == EventStatus.CANCELLED)
                 .collect(Collectors.toList());
@@ -93,6 +93,52 @@ public class RegistrationController {
         } catch (IllegalStateException | IllegalArgumentException e) {
             ra.addFlashAttribute("errorMsg", e.getMessage());
             return "redirect:/discover";
+        }
+    }
+
+    @GetMapping("/events/{id}/attendance")
+    public String showAttendance(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        try {
+            List<ParticipantDto> participants = registrationService.getParticipantsForEvent(id, userDetails.getUser().getId(), userDetails.getUser().getRole());
+            Event event = eventService.getEventById(id).orElseThrow();
+            
+            if (!event.getCreatorId().equals(userDetails.getUser().getId())) {
+                throw new IllegalStateException("Only the event creator can record attendance.");
+            }
+            if (event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
+                throw new IllegalStateException("Attendance can only be recorded when the event is In Progress or Awaiting Proof.");
+            }
+            
+            model.addAttribute("event", event);
+            model.addAttribute("participants", participants);
+            
+            long attendedCount = participants.stream().filter(p -> p.getRegistration().getStatus() == RegistrationStatus.ATTENDED).count();
+            model.addAttribute("attendedCount", attendedCount);
+            
+            return "registration/attendance";
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+            return "redirect:/events/" + id;
+        }
+    }
+
+    @PostMapping("/events/{id}/attendance")
+    public String saveAttendance(@PathVariable Long id, 
+                                 @RequestParam(value = "attendedIds", required = false, defaultValue = "") List<Long> attendedIds, 
+                                 Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        try {
+            registrationService.saveAttendance(id, userDetails.getUser().getId(), attendedIds);
+            
+            int present = attendedIds.size();
+            int total = registrationService.getParticipantsForEvent(id, userDetails.getUser().getId(), userDetails.getUser().getRole()).size();
+            ra.addFlashAttribute("successMsg", "Attendance saved: " + present + " of " + total + " present.");
+            return "redirect:/events/" + id;
+            
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+            return "redirect:/events/" + id + "/attendance";
         }
     }
 }
