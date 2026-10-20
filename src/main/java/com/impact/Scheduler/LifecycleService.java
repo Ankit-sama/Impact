@@ -35,6 +35,7 @@ public class LifecycleService {
     }
 
     @Scheduled(fixedDelayString = "${impact.scheduler.interval-seconds}000")
+    @Transactional // FIX: Start the transaction at the entry point of the scheduled job
     public void runScheduledTick() {
         tick();
     }
@@ -85,10 +86,8 @@ public class LifecycleService {
                     event.setNeedsVolunteers(false);
                     changed = true;
                     
-                    // Notify the Creator
                     notificationService.createNotification(event.getCreatorId(), "'" + event.getTitle() + "' has started.", "/events/" + event.getId());
                     
-                    // Notify active registrants
                     List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(event.getId(), List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
                     for (Registration reg : activeRegs) {
                         notificationService.createNotification(reg.getUserId(), "'" + event.getTitle() + "' has started.", "/events/" + event.getId());

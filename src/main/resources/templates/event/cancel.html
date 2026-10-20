@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: header('Cancel Event - impACT')}"></head>
+<body class="bg-light">
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<div class="container mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="d-flex align-items-center mb-4">
+                <button type="button" class="btn btn-outline-secondary btn-sm me-3" onclick="history.back()"><i class="bi bi-arrow-left"></i> Back</button>
+                <h3 class="mb-0 text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Cancel Event</h3>
+            </div>
+            
+            <div th:if="${errorMsg}" class="alert alert-danger" th:text="${errorMsg}"></div>
+
+            <div class="card shadow-sm border-danger mb-4">
+                <div class="card-header bg-danger text-white">Event Summary</div>
+                <div class="card-body">
+                    <h5 class="card-title fw-bold" th:text="${event.title}">Event Title</h5>
+                    <p class="mb-1 text-muted"><i class="bi bi-geo-alt"></i> <span th:text="${event.city}">City</span></p>
+                    <p class="mb-3 text-muted"><i class="bi bi-calendar"></i> Starts: <span th:text="${#temporals.format(event.startAt, 'dd MMM yyyy, HH:mm')}">Date</span></p>
+                    
+                    <div class="alert alert-warning border-warning">
+                        <strong>Warning:</strong> Cancelling this event is a permanent action. All registered participants will be notified and any simulated funding will be refunded.
+                    </div>
+
+                    <form th:action="@{/events/{id}/cancel(id=${event.id})}" method="post">
+                        <div class="mb-4">
+                            <label class="form-label">
+                                Reason for cancellation
+                                <span th:if="${isAdmin}" class="text-danger">* (Required for Administrators)</span>
+                                <span th:unless="${isAdmin}" class="text-muted">(Optional)</span>
+                            </label>
+                            <textarea class="form-control" name="reason" rows="4" th:required="${isAdmin}"></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end gap-2">
+                            <a th:href="@{/events/{id}(id=${event.id})}" class="btn btn-secondary">Go Back</a>
+                            <button type="submit" class="btn btn-danger fw-bold">Confirm Cancellation</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+</body>
+</html>

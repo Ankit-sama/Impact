@@ -5,6 +5,7 @@ import com.impact.config.AppClock;
 import com.impact.event.dto.EventFormDto;
 import com.impact.organization.OrganizationService;
 import com.impact.scheduler.LifecycleService;
+import com.impact.user.Role;
 import com.impact.user.User;
 import jakarta.validation.Valid;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -67,8 +68,6 @@ public class EventController {
         if (authentication != null && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             userId = userDetails.getUser().getId();
-            
-            // FIX: Use the updated isUserActive method to catch both CONFIRMED and ATTENDED users
             isConfirmed = registrationService.isUserActive(id, userId);
         }
 
@@ -210,6 +209,60 @@ public class EventController {
         } catch (IllegalStateException e) {
             ra.addFlashAttribute("errorMsg", e.getMessage());
             return "redirect:/my-events";
+        }
+    }
+
+    // PHASE B2: CANCEL ROUTES
+    @GetMapping("/events/{id}/cancel")
+    public String showCancelForm(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUser().getId();
+        Role role = userDetails.getUser().getRole();
+        
+        try {
+            Event event = eventService.getEventById(id).orElseThrow(() -> new IllegalArgumentException("Event not found"));
+            boolean isCreator = event.getCreatorId().equals(userId);
+            boolean isAdmin = role == Role.ROLE_ADMIN;
+
+            if (!isCreator && !isAdmin) {
+                throw new IllegalStateException("You do not have permission to cancel this event.");
+            }
+            if (event.getStatus() == EventStatus.CANCELLED) {
+                 throw new IllegalStateException("Event is already cancelled.");
+            }
+            
+            if (isCreator && !isAdmin) {
+                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS) {
+                    throw new IllegalStateException("Creators can only cancel Published or In Progress events.");
+                }
+                if (!event.getEndAt().isAfter(appClock.now())) {
+                    throw new IllegalStateException("Creators cannot cancel an event after its end time.");
+                }
+            } else if (isAdmin) {
+                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
+                    throw new IllegalStateException("Administrators cannot cancel this event at its current stage.");
+                }
+            }
+
+            model.addAttribute("event", event);
+            model.addAttribute("isAdmin", isAdmin);
+            return "event/cancel";
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+            return "redirect:/events/" + id;
+        }
+    }
+
+    @PostMapping("/events/{id}/cancel")
+    public String processCancel(@PathVariable Long id, @RequestParam(required = false) String reason, Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        try {
+            eventService.processUserCancellation(id, userDetails.getUser().getId(), userDetails.getUser().getRole(), reason);
+            ra.addFlashAttribute("successMsg", "Event successfully cancelled.");
+            return "redirect:/events/" + id;
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+            return "redirect:/events/" + id + "/cancel";
         }
     }
 }

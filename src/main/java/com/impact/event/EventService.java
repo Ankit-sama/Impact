@@ -12,6 +12,8 @@ import com.impact.scheduler.LifecycleService;
 import com.impact.user.Role;
 import com.impact.user.User;
 import com.impact.user.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -30,6 +32,8 @@ import java.util.Optional;
 
 @Service
 public class EventService {
+
+    private static final Logger logger = LoggerFactory.getLogger(EventService.class);
 
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
@@ -178,6 +182,50 @@ public class EventService {
     }
 
     @Transactional
+    public void processUserCancellation(Long eventId, Long userId, Role role, String reason) {
+        try {
+            Event event = lifecycleService.lockAndTick(eventId);
+            if (event.getStatus() == EventStatus.CANCELLED || event.getStatus() == EventStatus.VERIFIED || 
+                event.getStatus() == EventStatus.NOT_VERIFIED || event.getStatus() == EventStatus.COMPLETED) {
+                throw new IllegalStateException("Event cannot be cancelled in its current state.");
+            }
+
+            boolean isCreator = event.getCreatorId().equals(userId);
+            boolean isAdmin = role == Role.ROLE_ADMIN;
+
+            if (!isCreator && !isAdmin) {
+                throw new IllegalStateException("You do not have permission to cancel this event.");
+            }
+
+            CancelledBy cancelledBy;
+            if (isAdmin) {
+                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
+                    throw new IllegalStateException("Administrators can only cancel Published, In Progress, or Awaiting Proof events.");
+                }
+                if (reason == null || reason.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Reason is required for administrative cancellation.");
+                }
+                cancelledBy = CancelledBy.ADMIN;
+            } else {
+                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS) {
+                    throw new IllegalStateException("Creators can only cancel Published or In Progress events.");
+                }
+                if (!event.getEndAt().isAfter(appClock.now())) {
+                    throw new IllegalStateException("Creators cannot cancel an event after its end time.");
+                }
+                cancelledBy = CancelledBy.CREATOR;
+            }
+
+            cancelEvent(event, cancelledBy, reason);
+            logger.info("Event {} cancelled successfully by user {} (Role: {})", eventId, userId, role);
+            
+        } catch (Exception e) {
+            logger.error("Failed to process cancellation for event: " + eventId, e);
+            throw e;
+        }
+    }
+
+    @Transactional
     public void cancelEvent(Event event, CancelledBy cancelledBy, String reason) {
         if (event.getStatus() == EventStatus.CANCELLED) return;
 
@@ -189,20 +237,27 @@ public class EventService {
 
         if (cancelledBy != CancelledBy.CREATOR) {
             notificationService.createNotification(event.getCreatorId(),
-                    "Your event '" + event.getTitle() + "' was cancelled by " + cancelledBy.name() + ". Reason: " + reason,
+                    "Your event '" + event.getTitle() + "' was cancelled by " + cancelledBy.name() + ". Reason: " + (reason != null && !reason.isBlank() ? reason : "Not provided"),
                     "/events/" + event.getId());
         }
 
+        String actor = "the system";
+        if (cancelledBy == CancelledBy.CREATOR) actor = "the organizer";
+        if (cancelledBy == CancelledBy.ADMIN) actor = "an administrator";
+
         List<Registration> activeRegs = registrationRepository.findByEventIdAndStatusIn(event.getId(), List.of(RegistrationStatus.CONFIRMED, RegistrationStatus.ATTENDED));
         for (Registration reg : activeRegs) {
+            reg.setHoursCredited(0); 
+            registrationRepository.save(reg);
+            
             notificationService.createNotification(reg.getUserId(),
-                    "The event '" + event.getTitle() + "' has been cancelled. Reason: " + reason,
+                    "'" + event.getTitle() + "' was cancelled by " + actor + ". Reason: " + (reason != null && !reason.isBlank() ? reason : "Not provided"),
                     "/events/" + event.getId());
         }
 
         activityLogService.logAction(
                 event.getCreatorId(),
-                "EVENT_CANCELLED", "EVENT", event.getId(), "Cancelled by " + cancelledBy.name() + ". Reason: " + reason
+                "EVENT_CANCELLED", "EVENT", event.getId(), "Cancelled by " + cancelledBy.name() + ". Reason: " + (reason != null ? reason : "None")
         );
 
         // TODO (Stage 6): Refund simulated contributions here

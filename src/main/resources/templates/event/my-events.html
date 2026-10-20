@@ -49,6 +49,10 @@
                                   method="post" class="d-inline ms-1">
                                 <button type="submit" class="btn btn-sm btn-success">Publish</button>
                             </form>
+
+                            <a th:if="${(event.status.name() == 'PUBLISHED' || event.status.name() == 'IN_PROGRESS') && event.endAt.isAfter(@appClock.now())}" 
+                               th:href="@{/events/{id}/cancel(id=${event.id})}" 
+                               class="btn btn-sm btn-danger ms-1">Cancel</a>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(events)}">
