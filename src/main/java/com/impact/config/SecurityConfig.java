@@ -29,8 +29,7 @@ public class SecurityConfig {
                 .requestMatchers("/manager/**").hasAuthority("ROLE_ORG_MANAGER")
                 .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/", "/organization/**", "/discover", "/events/**").permitAll()
-                // Explicitly require authentication for action endpoints
-                .requestMatchers("/events/*/register", "/events/*/withdraw", "/events/*/attendance", "/events/*/participants", "/events/*/cancel").authenticated()
+                .requestMatchers("/events/*/register", "/events/*/withdraw", "/events/*/attendance", "/events/*/participants", "/events/*/cancel", "/events/*/edit-published").authenticated()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form

@@ -3,6 +3,7 @@ package com.impact.event;
 import com.impact.auth.CustomUserDetails;
 import com.impact.config.AppClock;
 import com.impact.event.dto.EventFormDto;
+import com.impact.event.dto.PublishedEventEditDto;
 import com.impact.organization.OrganizationService;
 import com.impact.scheduler.LifecycleService;
 import com.impact.user.Role;
@@ -166,6 +167,39 @@ public class EventController {
         }
     }
 
+    @GetMapping("/events/{id}/edit-published")
+    public String showEditPublishedForm(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        try {
+            Event event = eventService.getEventForCreator(id, userDetails.getUser().getId());
+            model.addAttribute("event", event);
+            model.addAttribute("editDto", eventService.getPublishedEventForEdit(id, userDetails.getUser().getId()));
+            return "event/edit-published";
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMsg", e.getMessage());
+            return "redirect:/events/" + id;
+        }
+    }
+
+    @PostMapping("/events/{id}/edit-published")
+    public String processEditPublishedForm(@PathVariable Long id, @Valid @ModelAttribute("editDto") PublishedEventEditDto dto,
+                                          BindingResult result, Model model, Authentication authentication, RedirectAttributes ra) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        if (result.hasErrors()) {
+            model.addAttribute("event", eventService.getEventForCreator(id, userDetails.getUser().getId()));
+            return "event/edit-published";
+        }
+        try {
+            eventService.updatePublishedEvent(id, userDetails.getUser().getId(), dto);
+            ra.addFlashAttribute("successMsg", "Event updated successfully.");
+            return "redirect:/events/" + id;
+        } catch (Exception e) {
+            model.addAttribute("errorMsg", e.getMessage());
+            model.addAttribute("event", eventService.getEventForCreator(id, userDetails.getUser().getId()));
+            return "event/edit-published";
+        }
+    }
+
     @PostMapping("/events/{id}/publish")
     public String tryPublish(@PathVariable Long id, Authentication authentication, RedirectAttributes ra) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
@@ -212,7 +246,6 @@ public class EventController {
         }
     }
 
-    // PHASE B2: CANCEL ROUTES
     @GetMapping("/events/{id}/cancel")
     public String showCancelForm(@PathVariable Long id, Model model, Authentication authentication, RedirectAttributes ra) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();

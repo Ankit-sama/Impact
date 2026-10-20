@@ -4,6 +4,7 @@ import com.impact.admin.ActivityLogService;
 import com.impact.config.AppClock;
 import com.impact.config.ImpactProperties;
 import com.impact.event.dto.EventFormDto;
+import com.impact.event.dto.PublishedEventEditDto;
 import com.impact.notification.NotificationService;
 import com.impact.organization.OrgStatus;
 import com.impact.organization.Organization;
@@ -152,6 +153,48 @@ public class EventService {
         eventRepository.save(event);
     }
 
+    public PublishedEventEditDto getPublishedEventForEdit(Long eventId, Long creatorId) {
+        Event event = getEventForCreator(eventId, creatorId);
+        if (event.getStatus() != EventStatus.PUBLISHED || !event.getStartAt().isAfter(appClock.now())) {
+            throw new IllegalStateException("Only published events that haven't started can be edited.");
+        }
+        
+        PublishedEventEditDto dto = new PublishedEventEditDto();
+        dto.setPurpose(event.getPurpose());
+        dto.setAddress(event.getAddress());
+        dto.setCapacity(event.getCapacity());
+        return dto;
+    }
+
+    @Transactional
+    public void updatePublishedEvent(Long eventId, Long creatorId, PublishedEventEditDto dto) {
+        try {
+            Event event = lifecycleService.lockAndTick(eventId);
+            if (!event.getCreatorId().equals(creatorId)) {
+                throw new IllegalStateException("You are not authorized to access this event.");
+            }
+            if (event.getStatus() != EventStatus.PUBLISHED) {
+                throw new IllegalStateException("Only published events can be edited with this form.");
+            }
+            if (!event.getStartAt().isAfter(appClock.now())) {
+                throw new IllegalStateException("You cannot edit an event after it has started.");
+            }
+            if (dto.getCapacity() < event.getCapacity()) {
+                throw new IllegalArgumentException("Capacity can only be increased, not lowered.");
+            }
+
+            event.setPurpose(dto.getPurpose());
+            event.setAddress(dto.getAddress());
+            event.setCapacity(dto.getCapacity());
+            eventRepository.save(event);
+            
+            logger.info("Published Event {} edited successfully by user {}", eventId, creatorId);
+        } catch (Exception e) {
+            logger.error("Failed to update published event: " + eventId, e);
+            throw e;
+        }
+    }
+
     @Transactional
     public void publishEvent(Long eventId, Long creatorId) {
         Event event = lifecycleService.lockAndTick(eventId);
@@ -261,6 +304,10 @@ public class EventService {
         );
 
         // TODO (Stage 6): Refund simulated contributions here
+    }
+
+    public long getCreatorCancelledEventsCount(Long organizationId) {
+        return eventRepository.countByOrganizationIdAndStatusAndCancelledByAndPublishedAtIsNotNull(organizationId, EventStatus.CANCELLED, CancelledBy.CREATOR);
     }
 
     public List<Event> findSimilarEvents(Long eventId, Long creatorId) {

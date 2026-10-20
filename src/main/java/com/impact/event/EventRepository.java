@@ -34,10 +34,12 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     @Query("SELECT e FROM Event e WHERE e.id = :id")
     Optional<Event> findByIdForUpdate(@Param("id") Long id);
 
-    // NEW: Efficiently find events that might require a state transition
     @Query("SELECT e.id FROM Event e WHERE " +
            "(e.status = 'DRAFT' AND e.startAt <= :now) OR " +
            "(e.status = 'PUBLISHED' AND e.startAt <= :readinessTime) OR " +
            "(e.status = 'IN_PROGRESS' AND e.endAt <= :now)")
     List<Long> findIdsNeedingTick(@Param("now") Instant now, @Param("readinessTime") Instant readinessTime);
+
+    // NEW: Count for public organization profile
+    long countByOrganizationIdAndStatusAndCancelledByAndPublishedAtIsNotNull(Long organizationId, EventStatus status, CancelledBy cancelledBy);
 }
