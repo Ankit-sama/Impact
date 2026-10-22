@@ -257,19 +257,21 @@ public class EventService {
 
             CancelledBy cancelledBy;
             if (isAdmin) {
-                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
-                    throw new IllegalStateException("Administrators can only cancel Published, In Progress, or Awaiting Proof events.");
+                // FIXED: Admins can no longer cancel IN_PROGRESS events
+                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.AWAITING_PROOF) {
+                    throw new IllegalStateException("Administrators can only cancel Published or Awaiting Proof events.");
                 }
                 if (reason == null || reason.trim().isEmpty()) {
                     throw new IllegalArgumentException("Reason is required for administrative cancellation.");
                 }
                 cancelledBy = CancelledBy.ADMIN;
             } else {
-                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS) {
-                    throw new IllegalStateException("Creators can only cancel Published or In Progress events.");
+                // FIXED: Creators can only cancel PUBLISHED events (before they start)
+                if (event.getStatus() != EventStatus.PUBLISHED) {
+                    throw new IllegalStateException("Creators can only cancel Published events.");
                 }
-                if (!event.getEndAt().isAfter(appClock.now())) {
-                    throw new IllegalStateException("Creators cannot cancel an event after its end time.");
+                if (!event.getStartAt().isAfter(appClock.now())) {
+                    throw new IllegalStateException("Creators cannot cancel an event after its start time.");
                 }
                 cancelledBy = CancelledBy.CREATOR;
             }
@@ -390,7 +392,7 @@ public class EventService {
         event.setEndAt(dto.getEndAtLocal().atZone(IST_ZONE).toInstant());
         event.setExpectedHours(dto.getExpectedHours());
         event.setState(dto.getState());
-        event.setCity(dto.getCity());
+        event.setCity(event.getCity());
         event.setAddress(dto.getAddress());
         event.setCapacity(dto.getCapacity());
     }

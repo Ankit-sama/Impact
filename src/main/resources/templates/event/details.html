@@ -18,7 +18,6 @@
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body p-4">
                     
-                    <!-- LIVE UPDATE: Badges -->
                     <div class="d-flex justify-content-between align-items-start mb-3 live-update" id="details-badges">
                         <div class="d-flex gap-2">
                             <span class="badge bg-primary fs-6" th:text="${event.category.displayName}">Category</span>
@@ -28,7 +27,6 @@
                     
                     <h2 class="fw-bold mb-4" th:text="${event.title}">Event Title</h2>
 
-                    <!-- LIVE UPDATE: Cancellation Alert -->
                     <div class="live-update" id="details-cancel-alert">
                         <div th:if="${event.status.name() == 'CANCELLED'}" class="alert alert-danger mb-4">
                             <h5 class="alert-heading"><i class="bi bi-x-circle-fill"></i> Event Cancelled</h5>
@@ -44,12 +42,10 @@
                     <p class="mb-1"><strong>City/State:</strong> <span th:text="${event.city} + ', ' + ${event.state}"></span></p>
                     <p class="mb-0"><strong>Address:</strong> <span th:text="${event.address != null and !event.address.isBlank() ? event.address : 'Not provided'}"></span></p>
 
-                    <!-- LIVE UPDATE: Creator Controls -->
                     <div class="live-update" id="details-org-controls">
                         <div th:if="${currentUser != null && currentUser.user.id == event.creatorId}" class="alert alert-light border mt-5">
                             <h6 class="alert-heading">Organizer Controls</h6>
                             
-                            <!-- DRAFT Controls: Edit, Delete, Publish -->
                             <div th:if="${event.status.name() == 'DRAFT'}">
                                 <a th:href="@{/events/{id}/edit(id=${event.id})}" class="btn btn-primary btn-sm mt-2">Edit Draft</a>
                                 
@@ -76,7 +72,8 @@
                                        th:href="@{/events/{id}/attendance(id=${event.id})}" 
                                        class="btn btn-primary btn-sm me-2">Attendance</a>
                                        
-                                    <a th:if="${(event.status.name() == 'PUBLISHED' || event.status.name() == 'IN_PROGRESS') && event.endAt.isAfter(now)}" 
+                                    <!-- FIXED: Only PUBLISHED and strictly before start -->
+                                    <a th:if="${event.status.name() == 'PUBLISHED' && event.startAt.isAfter(now)}" 
                                        th:href="@{/events/{id}/cancel(id=${event.id})}" 
                                        class="btn btn-danger btn-sm">Cancel Event</a>
                                 </div>
@@ -119,7 +116,8 @@
                             <button class="btn btn-secondary w-100 mb-2" disabled>Admins cannot register</button>
                             <a th:href="@{/events/{id}/participants(id=${event.id})}" class="btn btn-outline-primary w-100 mb-2">View Participants</a>
                             
-                            <a th:if="${event.status.name() == 'PUBLISHED' || event.status.name() == 'IN_PROGRESS' || event.status.name() == 'AWAITING_PROOF'}" 
+                            <!-- FIXED: Admins can only cancel PUBLISHED or AWAITING_PROOF -->
+                            <a th:if="${event.status.name() == 'PUBLISHED' || event.status.name() == 'AWAITING_PROOF'}" 
                                th:href="@{/events/{id}/cancel(id=${event.id})}" 
                                class="btn btn-danger w-100 mt-2">Cancel Event</a>
                         </div>

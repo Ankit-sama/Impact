@@ -167,7 +167,6 @@ public class EventController {
         }
     }
 
-    // NEW: Delete Draft Endpoint
     @PostMapping("/events/{id}/delete-draft")
     public String deleteDraft(@PathVariable Long id, Authentication authentication, RedirectAttributes ra) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
@@ -278,15 +277,17 @@ public class EventController {
             }
             
             if (isCreator && !isAdmin) {
-                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS) {
-                    throw new IllegalStateException("Creators can only cancel Published or In Progress events.");
+                // FIXED: Removed IN_PROGRESS
+                if (event.getStatus() != EventStatus.PUBLISHED) {
+                    throw new IllegalStateException("Creators can only cancel Published events.");
                 }
-                if (!event.getEndAt().isAfter(appClock.now())) {
-                    throw new IllegalStateException("Creators cannot cancel an event after its end time.");
+                if (!event.getStartAt().isAfter(appClock.now())) {
+                    throw new IllegalStateException("Creators cannot cancel an event after its start time.");
                 }
             } else if (isAdmin) {
-                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.IN_PROGRESS && event.getStatus() != EventStatus.AWAITING_PROOF) {
-                    throw new IllegalStateException("Administrators cannot cancel this event at its current stage.");
+                // FIXED: Removed IN_PROGRESS
+                if (event.getStatus() != EventStatus.PUBLISHED && event.getStatus() != EventStatus.AWAITING_PROOF) {
+                    throw new IllegalStateException("Administrators can only cancel Published or Awaiting Proof events.");
                 }
             }
 
